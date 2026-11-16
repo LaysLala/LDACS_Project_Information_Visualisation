@@ -35,6 +35,13 @@ Cleaning decisions
    the UI: cancer_type (1903 of 1904 are 'Breast Cancer'), oncotree_code (same
    information as cancer_type_detailed), cohort (sampling batch, no clinical
    meaning).
+7. Cohort (batch) effect in mRNA. The first principal component of the raw
+   z-scores mostly separates the 5 sampling cohorts, i.e. a technical effect,
+   not biology. The cohorts have almost the same subtype mix (Cramer's V
+   cohort/PAM50 = 0.09), so centring each gene within its cohort removes the
+   batch effect while keeping the biological signal. `remove_cohort_effect()`
+   does this; the raw values stay available (see notebooks/Exploratory.ipynb,
+   section 9).
 
 Run `python -m src.data` from the project root to print a summary.
 """
@@ -47,9 +54,7 @@ from pathlib import Path
 
 import pandas as pd
 
-# --------------------------------------------------------------------------- #
 # Locations (always relative to the project, never absolute)
-# --------------------------------------------------------------------------- #
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = PROJECT_ROOT / "data" / "METABRIC_RNA_Mutation.csv"
 DATASET_URL = (
@@ -61,9 +66,7 @@ FIRST_GENE_COLUMN = "brca1"  # first mRNA column in the CSV
 MUTATION_SUFFIX = "_mut"
 UNKNOWN = "Unknown"
 
-# --------------------------------------------------------------------------- #
 # Column vocabulary
-# --------------------------------------------------------------------------- #
 RENAME = {
     "pam50_+_claudin-low_subtype": "pam50_subtype",
     "3-gene_classifier_subtype": "three_gene_subtype",
@@ -164,9 +167,7 @@ LABELS: dict[str, str] = {
 }
 
 
-# --------------------------------------------------------------------------- #
 # Public API
-# --------------------------------------------------------------------------- #
 class DatasetMissingError(FileNotFoundError):
     """Raised when the CSV is not where the README says it should be."""
 
@@ -224,6 +225,16 @@ def load_data(path: Path | str = DATA_PATH) -> Metabric:
         mutations=mutations,
         mutation_codes=mutation_codes,
     )
+
+
+def remove_cohort_effect(mrna: pd.DataFrame, cohort: pd.Series) -> pd.DataFrame:
+    """Centre every gene within each cohort, then re-standardise (mean 0, sd 1).
+
+    Removes the technical (batch) differences between sampling cohorts; see
+    cleaning decision 7. `cohort` must share `mrna`'s index.
+    """
+    centred = mrna - mrna.groupby(cohort).transform("mean")
+    return (centred - centred.mean()) / centred.std()
 
 
 def label(column: str) -> str:
@@ -329,9 +340,7 @@ def _as_ordered_category(series: pd.Series, order: list[str] | None) -> pd.Serie
     return pd.Categorical(values, categories=order, ordered=False)
 
 
-# --------------------------------------------------------------------------- #
 # Quick check:  python -m src.data
-# --------------------------------------------------------------------------- #
 if __name__ == "__main__":
     d = load_data()
     print(f"patients            : {d.n_patients}")

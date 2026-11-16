@@ -78,6 +78,8 @@ Then open <http://127.0.0.1:8050> in a web browser.
 ├── data/                   the dataset goes here (not included)
 ├── src/
 │   ├── data.py             loading and cleaning (cleaning decisions documented inside)
+│   ├── stats.py            Kaplan-Meier, log-rank test, Cramér's V
+│   ├── algorithms.py       dimensionality reduction, clustering, quality measures
 │   └── theme.py            shared colours, fonts and Plotly template
 ├── notebooks/
 │   └── Exploratory.ipynb   exploratory data analysis
@@ -85,3 +87,16 @@ Then open <http://127.0.0.1:8050> in a web browser.
 ```
 
 All file paths in the code are relative to the project root.
+
+---
+
+## 5. Exploratory notebook (optional)
+
+`notebooks/Exploratory.ipynb` contains the exploratory analysis behind the
+design of the dashboard. Besides `requirements.txt`, it needs:
+
+```bash
+pip install jupyter matplotlib xgboost shap
+```
+
+Open it from the `notebooks/` folder and run all cells (about 2 minutes).

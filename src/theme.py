@@ -29,9 +29,7 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import plotly.io as pio
 
-# --------------------------------------------------------------------------- #
 # Typography & surfaces
-# --------------------------------------------------------------------------- #
 FONT_FAMILY = "Inter, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 FONT_SIZE = 13
 TITLE_SIZE = 15
@@ -44,9 +42,8 @@ TEXT_MUTED = "#898781"      # tick labels, annotations
 GRID = "#e1e0d9"            # hairline gridlines
 AXIS = "#c3c2b7"            # axis lines / baselines
 
-# --------------------------------------------------------------------------- #
 # Categorical colours
-# --------------------------------------------------------------------------- #
+
 # PAM50 molecular subtypes - Okabe & Ito (2008) colour-blind-safe palette,
 # assigned with meaning: the two luminal subtypes share the blue family,
 # the aggressive Basal subtype gets the warmest colour.
@@ -88,9 +85,7 @@ MAX_CATEGORIES = len(CATEGORICAL)
 OTHER_COLOR = "#b4b2a9"   # "Other" bucket (> 8 groups)
 NOISE_COLOR = "#d9d8d2"   # DBSCAN noise points / unknown values
 
-# --------------------------------------------------------------------------- #
 # Continuous scales
-# --------------------------------------------------------------------------- #
 # Diverging: blue (low) <-> neutral grey (0) <-> red (high).
 DIVERGING: list[list] = [
     [0.0, "#104281"],
@@ -118,17 +113,13 @@ SEQUENTIAL: list[list] = [
     [1.0, "#0d366b"],
 ]
 
-# --------------------------------------------------------------------------- #
 # Selection (linked brushing)
-# --------------------------------------------------------------------------- #
 SELECTED_OPACITY = 0.85
 UNSELECTED_COLOR = "#d9d8d2"
 UNSELECTED_OPACITY = 0.25
 MARKER_SIZE = 6
 
-# --------------------------------------------------------------------------- #
 # Helpers
-# --------------------------------------------------------------------------- #
 _FIXED_MAPS = {
     "pam50_subtype": SUBTYPE_COLORS,
     "vital_status": VITAL_STATUS_COLORS,
@@ -174,9 +165,7 @@ def cluster_colors(labels: list[int]) -> dict[int, str]:
     return mapping
 
 
-# --------------------------------------------------------------------------- #
 # Plotly template
-# --------------------------------------------------------------------------- #
 _axis = dict(
     showgrid=True,
     gridcolor=GRID,
@@ -212,6 +201,10 @@ TEMPLATE = go.layout.Template(
             font=dict(family=FONT_FAMILY, size=FONT_SIZE - 1, color=TEXT),
         ),
         coloraxis=dict(colorbar=dict(outlinewidth=0, thickness=12)),
+        # 'simple_white' sets shape lines to width 0, which hides every
+        # reference line (medians, thresholds, dendrogram cut): restore them.
+        shapedefaults=dict(line=dict(width=1.5, color=TEXT_SECONDARY), opacity=1,
+                           fillcolor=TEXT_MUTED),
         margin=dict(l=56, r=16, t=48, b=48),
         bargap=0.15,
     ),
