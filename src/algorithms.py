@@ -5,7 +5,8 @@ Thin wrappers around scikit-learn / umap-learn with the parameters the user
 can change in the dashboard, plus the evaluation tools seen in the practical
 sessions:
   - choosing k: within-cluster (W) and between-cluster (B) sums of squares,
-    Calinski-Harabasz index, silhouette                      (TP3)
+    Calinski-Harabasz index                                  (TP3, lecture 06)
+  - clusters vs known labels: purity                         (TP3 "accuracy")
   - DBSCAN eps heuristic: sorted k-distance plot              (TP3)
   - DR quality: Q_NX / R_NX neighbourhood preservation curves (TP6)
 
@@ -26,11 +27,12 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from scipy.cluster import hierarchy
 from scipy.spatial.distance import pdist, squareform
-from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-from sklearn.metrics import calinski_harabasz_score, silhouette_score
+from sklearn.metrics import calinski_harabasz_score
 from sklearn.neighbors import NearestNeighbors
 
 SEED = 42
@@ -72,9 +74,33 @@ def kmeans(X, k: int, seed: int = SEED) -> np.ndarray:
     return KMeans(n_clusters=k, n_init=10, random_state=seed).fit_predict(np.asarray(X))
 
 
+LINKAGES = ("ward", "centroid", "average", "complete", "single")
+
+
+def linkage_tree(X, linkage: str = "ward") -> np.ndarray:
+    """Full agglomerative merge tree (SciPy linkage matrix Z) for the dendrogram.
+
+    SciPy is used instead of scikit-learn because it offers centroid linkage
+    (lecture 06) and returns the whole tree, not only one cut."""
+    if linkage not in LINKAGES:
+        raise ValueError(f"linkage must be one of {LINKAGES}")
+    return hierarchy.linkage(np.asarray(X, dtype=float), method=linkage, metric="euclidean")
+
+
+def cut_tree(Z: np.ndarray, k: int) -> np.ndarray:
+    """Cut a merge tree into (at most) k clusters; labels start at 0."""
+    return hierarchy.fcluster(Z, t=k, criterion="maxclust") - 1
+
+
 def hierarchical(X, k: int, linkage: str = "ward") -> np.ndarray:
-    """Agglomerative clustering; linkage in {'ward', 'complete', 'average', 'single'}."""
-    return AgglomerativeClustering(n_clusters=k, linkage=linkage).fit_predict(np.asarray(X))
+    """Agglomerative clustering; linkage in LINKAGES (Ward = default, see report)."""
+    return cut_tree(linkage_tree(X, linkage), k)
+
+
+def count_inversions(Z: np.ndarray) -> int:
+    """Merges drawn lower than the previous one. Centroid linkage can produce
+    them (lecture 06); a tree with inversions cannot be cut cleanly."""
+    return int((np.diff(Z[:, 2]) < 0).sum())
 
 
 def dbscan(X, eps: float, min_samples: int = 5) -> np.ndarray:
@@ -85,15 +111,26 @@ def dbscan(X, eps: float, min_samples: int = 5) -> np.ndarray:
 def k_distance(X, k: int = 5) -> np.ndarray:
     """Distance of every point to its k-th nearest neighbour, sorted ascending.
 
-    The "knee" of this curve is a classic heuristic for DBSCAN's eps
-    (with min_samples = k)."""
+    The "knee" of this curve is a classic heuristic for DBSCAN's eps.
+    scikit-learn's `min_samples` counts the point itself, so the matching
+    plot for min_samples = m uses k = m - 1."""
     nn = NearestNeighbors(n_neighbors=k + 1).fit(np.asarray(X))
     dist, _ = nn.kneighbors()
     return np.sort(dist[:, k - 1])
 
 
+def purity(labels, reference) -> float:
+    """Share of patients whose cluster's majority reference label is their own.
+
+    1 = every cluster contains a single subtype. Caveat: purity grows with the
+    number of clusters (1 cluster per patient gives 1), so compare it at equal
+    k and against the one-cluster baseline (share of the largest subtype)."""
+    table = pd.crosstab(np.asarray(labels), np.asarray(reference).astype(str))
+    return float(table.max(axis=1).sum() / table.to_numpy().sum())
+
+
 def choose_k_table(X, k_values=range(2, 11), seed: int = SEED) -> pd.DataFrame:
-    """K-means quality for several k: W, B, Calinski-Harabasz and silhouette."""
+    """K-means quality for several k: W, B and the Calinski-Harabasz index (TP3)."""
     X = np.asarray(X)
     total_ss = float(((X - X.mean(axis=0)) ** 2).sum())
     rows = []
@@ -106,7 +143,6 @@ def choose_k_table(X, k_values=range(2, 11), seed: int = SEED) -> pd.DataFrame:
                 "within_ss": w,
                 "between_ss": total_ss - w,
                 "calinski_harabasz": calinski_harabasz_score(X, model.labels_),
-                "silhouette": silhouette_score(X, model.labels_),
             }
         )
     return pd.DataFrame(rows)

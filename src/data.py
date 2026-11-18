@@ -37,11 +37,12 @@ Cleaning decisions
    meaning).
 7. Cohort (batch) effect in mRNA. The first principal component of the raw
    z-scores mostly separates the 5 sampling cohorts, i.e. a technical effect,
-   not biology. The cohorts have almost the same subtype mix (Cramer's V
-   cohort/PAM50 = 0.09), so centring each gene within its cohort removes the
+   not biology. The cohorts have almost the same subtype mix (normalized
+   mutual information cohort/PAM50 = 0.015), so centring each gene within its cohort removes the
    batch effect while keeping the biological signal. `remove_cohort_effect()`
-   does this; the raw values stay available (see notebooks/Exploratory.ipynb,
-   section 9).
+   does this (see notebooks/Exploratory.ipynb, sections 7.2-7.3). In the
+   dashboard the correction is OFF by default (raw data shown as published)
+   and the user can switch it on with a toggle.
 
 Run `python -m src.data` from the project root to print a summary.
 """

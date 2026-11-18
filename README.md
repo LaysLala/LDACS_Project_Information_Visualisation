@@ -78,7 +78,7 @@ Then open <http://127.0.0.1:8050> in a web browser.
 ├── data/                   the dataset goes here (not included)
 ├── src/
 │   ├── data.py             loading and cleaning (cleaning decisions documented inside)
-│   ├── stats.py            Kaplan-Meier, log-rank test, Cramér's V
+│   ├── stats.py            Kaplan-Meier, log-rank test, mutual information
 │   ├── algorithms.py       dimensionality reduction, clustering, quality measures
 │   └── theme.py            shared colours, fonts and Plotly template
 ├── notebooks/

@@ -5,14 +5,14 @@ Statistics used by the dashboard and the exploratory notebook.
   band) and the k-group log-rank test. Survival data is "time-to-event" with
   censoring: a patient alive at the end of follow-up only tells us she survived
   *at least* that long, so a simple "% deceased" bar would be misleading.
-- Cramer's V: strength of association between two categorical variables
-  (0 = independent, 1 = one determines the other).
+- Normalized mutual information: strength of association between two
+  categorical variables (0 = independent, 1 = one determines the other).
 
 References
 ----------
 Kaplan & Meier (1958), Nonparametric estimation from incomplete observations.
 Mantel (1966), Evaluation of survival data and two new rank order statistics.
-Cramer (1946), Mathematical Methods of Statistics.
+Strehl & Ghosh (2002), Cluster ensembles (normalized mutual information). JMLR.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy import stats as sps
+from sklearn.metrics import normalized_mutual_info_score
 
 
 def kaplan_meier(time, event, confidence: float = 0.95) -> pd.DataFrame:
@@ -146,27 +147,22 @@ def logrank_test(time, event, groups) -> tuple[float, int, float]:
     return stat, dof, float(sps.chi2.sf(stat, dof))
 
 
-def cramers_v(x, y) -> float:
-    """Bias-corrected Cramer's V between two categorical series (Bergsma, 2013).
+def mutual_information(x, y) -> float:
+    """Normalized mutual information between two categorical variables.
 
+    Mutual information (TP1) measures how much knowing one variable tells
+    about the other. Normalising by the entropies (arithmetic mean) maps it to
+    [0, 1]: 0 = independent, 1 = one determines the other, so pairs with
+    different numbers of categories can be compared on one colour scale.
     Inputs are matched by position (not by pandas index)."""
-    table = pd.crosstab(np.asarray(x).astype(str), np.asarray(y).astype(str))
-    if min(table.shape) < 2:
-        return 0.0
-    chi2 = sps.chi2_contingency(table, correction=False)[0]
-    n = table.to_numpy().sum()
-    r, c = table.shape
-    phi2 = max(0.0, chi2 / n - (r - 1) * (c - 1) / (n - 1))
-    r_corr = r - (r - 1) ** 2 / (n - 1)
-    c_corr = c - (c - 1) ** 2 / (n - 1)
-    denom = min(r_corr - 1, c_corr - 1)
-    return float(np.sqrt(phi2 / denom)) if denom > 0 else 0.0
+    return float(normalized_mutual_info_score(np.asarray(x).astype(str),
+                                              np.asarray(y).astype(str)))
 
 
-def cramers_v_matrix(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Symmetric matrix of Cramer's V for every pair of categorical columns."""
+def mutual_information_matrix(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Symmetric matrix of normalized mutual information for categorical columns."""
     m = pd.DataFrame(np.eye(len(columns)), index=columns, columns=columns)
     for i, a in enumerate(columns):
         for b in columns[i + 1:]:
-            m.loc[a, b] = m.loc[b, a] = cramers_v(df[a], df[b])
+            m.loc[a, b] = m.loc[b, a] = mutual_information(df[a], df[b])
     return m
