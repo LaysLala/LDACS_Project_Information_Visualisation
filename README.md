@@ -73,11 +73,20 @@ Then open <http://127.0.0.1:8050> in a web browser.
 ## 4. Project structure
 
 ```
-├── app.py                  entry point of the dashboard
+├── app.py                  entry point of the dashboard (layout shell)
 ├── requirements.txt        Python dependencies
 ├── data/                   the dataset goes here (not included)
+├── pages/                  one module per dashboard page (Dash Pages)
+│   ├── overview.py
+│   ├── relationships.py
+│   └── clusters.py
+├── assets/style.css        page layout and component styles
 ├── src/
 │   ├── data.py             loading and cleaning (cleaning decisions documented inside)
+│   ├── state.py            filters and selection (shared state)
+│   ├── callbacks.py        app-wide callbacks (filters, selection, header, help)
+│   ├── components.py       header, filter sidebar, selection bar, cards
+│   ├── figures.py          figure builders used by the pages
 │   ├── stats.py            Kaplan-Meier, log-rank test, mutual information
 │   ├── algorithms.py       dimensionality reduction, clustering, quality measures
 │   └── theme.py            shared colours, fonts and Plotly template
