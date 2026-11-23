@@ -154,21 +154,29 @@ def select_subtype(click, filtered):
 # Survival
 # --------------------------------------------------------------------------- #
 @callback(Output("ov-km-split", "options"), Output("ov-km-split", "value"),
-          Input("selected", "data"), Input("filtered-ids", "data"), State("ov-km-split", "value"))
-def split_options(selected, filtered, current):
+          Input("selected", "data"), Input("filtered-ids", "data"), Input("cluster-result", "data"),
+          State("ov-km-split", "value"))
+def split_options(selected, filtered, clusters, current):
     has_sel = bool(visible_selection(selected, filtered or []))
-    options = ([{"label": "Selection vs rest", "value": "selection"}] if has_sel else []) + SPLIT_OPTIONS
-    if current == "selection" and not has_sel:
+    options = (([{"label": "Selection vs rest", "value": "selection"}] if has_sel else [])
+               + ([{"label": "Cluster (Clusters page)", "value": "cluster"}] if clusters else [])
+               + SPLIT_OPTIONS)
+    if (current == "selection" and not has_sel) or (current == "cluster" and not clusters):
         return options, "pam50_subtype"
     return options, no_update
 
 
+def cluster_series(res) -> pd.Series | None:
+    """Cluster label per patient from the last Run on the Clusters page (None if no run yet)."""
+    return pd.Series(res["labels"], index=res["ids"]) if res else None
+
+
 @callback(Output("ov-km", "figure"), Output("ov-km-test", "children"),
           Input("filtered-ids", "data"), Input("selected", "data"),
-          Input("ov-km-split", "value"), Input("ov-km-event", "value"))
-def survival_chart(filtered, selected, split, event):
+          Input("ov-km-split", "value"), Input("ov-km-event", "value"), Input("cluster-result", "data"))
+def survival_chart(filtered, selected, split, event, clusters):
     df, sel = _frames(filtered, selected)
-    groups, order, colors = figures.survival_groups(df, split, sel)
+    groups, order, colors = figures.survival_groups(df, split, sel, cluster_series(clusters))
     return figures.km_figure(df, groups, order, colors, event=event)
 
 

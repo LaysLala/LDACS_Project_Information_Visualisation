@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: end of Phase 3 (2026-11-23). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: end of Phase 4 (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -245,6 +245,62 @@ clustering, with the dendrogram drawn next to it; its task is to judge whether g
 
 *Why no statistical test on mutations?* The comparison is visual, on a common scale, which is the course's focus; with
 many genes, p-values would need multiple-testing correction, which is outside the scope.
+
+### Phase 4: Clusters & projections page (`pages/clusters.py`, `src/compute.py`, `src/figures_clusters.py`)
+
+**Cards**
+
+| Card | What it does | Interaction | Course |
+|---|---|---|---|
+| **Settings + Run** | projection PCA / t-SNE (perplexity) / UMAP (neighbours, min_dist); clustering K-means (k) / hierarchical (linkage, k) / DBSCAN (eps percentile, min_samples); cluster in the 489 genes or in the 2-D view | nothing heavy runs until **Run**; status line gives method, clusters, noise, time, warnings | TP2, TP3, TP5, TP6; brief §4 |
+| **Projection** | 2-D scatter; colour by cluster, any clinical variable, any gene (diverging scale) or mutation; PCA axes show % variance, t-SNE/UMAP axes hidden | **lasso / box → selection** on every page | DR lecture; VAD linked highlighting |
+| **Diagnostics** | *Choose k*: W, B, Calinski–Harabasz for k = 2..8 (current k circled); for DBSCAN the sorted **k-distance curve** with eps; *Quality*: **R_NX(K)** + AUC; *Dendrogram*: top 30 branches, cut line, **inversion warning** | **click a branch → select its patients** | TP3, lectures 05–06, TP6 |
+| **Clusters vs subtypes** | row % cluster × PAM50 + a "whole cluster" column with sizes; **purity** vs one-cluster baseline | click → select the cluster or cluster ∩ subtype | TP3 "accuracy" |
+| **Survival per cluster** | Kaplan–Meier per cluster + log-rank | | "what are clusters useful for?" |
+
+**Clusters are shared app-wide**: after a Run, the Overview survival chart can split **by cluster**, and the mutation and
+cluster-heatmap cards of page 2 have a **"By cluster"** mode (what does each cluster mean biologically?).
+
+**Design decisions**
+
+| Decision | Why |
+|---|---|
+| **Run button**, nothing heavy on slider moves; spinner during the run | VAD responsiveness classes: > 1 s needs explicit feedback; the brief suggests forcing a choice before heavy algorithms. |
+| **Cache** (`functools.lru_cache`) per method + parameters + patients + cohort setting | Going back to a previous setting is instant (re-run t-SNE: 12.5 s → 0.0 s). |
+| Runs use the **filtered patients at the time of the Run**; if filters change, the projection keeps the computed patients that still match and says "press Run" | No surprise 30-s recomputation when a filter is clicked; the user stays in control. |
+| **UMAP warm-up** in a background thread at start-up | UMAP compiles its code on first use (numba); this moves ~15–20 s out of the first Run. |
+| **DBSCAN eps as a percentile of the k-distance curve** (default 90th), k = min_samples − 1 | TP3's heuristic made interactive; works in any space (489-D distances ≈ 20–50, UMAP ≈ 0.1–0.5) without retuning the slider. |
+| DBSCAN defaults to the **2-D view**; K-means / hierarchical to the **489 genes** | In 489-D no density structure exists (curse of dimensionality); K-means/Ward use all the information. |
+| Clusters named **C1 = largest**, noise grey; cluster palette ≠ subtype palette | Stable, readable names; a cluster is never mistaken for a subtype. |
+| Dendrogram **truncated to 30 branches**; branch = merge of Z matched by height | 1,904 leaves are unreadable; every visible dot is a clickable group of patients. |
+| Cut chosen with the **k slider** (not by dragging the line) | Simpler and exact; the dashed line shows where the cut falls. |
+
+**Measured speed** (1,904 patients): PCA + K-means 0.5 s; t-SNE + Ward 12.5 s; UMAP + DBSCAN 32 s on the very first run
+(numba compilation, now pre-warmed), ~12 s after; centroid tree 0.8 s; choose-k 2 s; R_NX 2.4 s; any cached setting
+instant; charts redrawn after a run ≤ 0.15 s.
+
+**Teacher questions for Phase 4**
+
+*Which parameters can the user change, and why those?* t-SNE perplexity and UMAP neighbours/min_dist (local vs global
+trade-off); k for K-means and hierarchical; the linkage; eps and min_samples for DBSCAN; the space clustered. These are
+exactly the parameters whose effect the course asks to explore ("how does changing the parameters change the
+clustering?"). Everything else is fixed (seed 42) for reproducibility.
+
+*Can a clustering help choose the DR method?* Yes: colour the projection by the clusters found in 489-D. If a projection
+keeps clusters together it preserves the structure the clustering found; R_NX measures the same thing quantitatively.
+
+*Do you see visual clusters in the projections?* Not really: one continuous cloud with the luminal → basal gradient;
+t-SNE magnifies small gaps (lecture: t-SNE can show spurious clusters), so we judge with R_NX and the cluster metrics,
+not by eye.
+
+*How do you cross-filter with hierarchical clustering?* Click a branch of the dendrogram: its patients become the
+selection on every page. The composition table and the survival chart then describe that branch.
+
+*What happens with centroid linkage?* The status line and the dendrogram warn: ~400 inversions; the tree is a staircase
+(chaining), cutting it gives one giant cluster. This is lecture 06's drawback, visible live.
+
+*How does the interface stay responsive?* Heavy work only on Run, cached results, pre-warmed UMAP, WebGL scatter,
+ids-only stores, and the other charts never wait for a heavy computation.
 
 ---
 

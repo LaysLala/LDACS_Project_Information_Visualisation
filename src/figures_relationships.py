@@ -226,16 +226,24 @@ def top_mutated(ids, n: int) -> list[str]:
     return load_data().mutations.loc[ids].mean().nlargest(n).index.tolist()
 
 
-def mutation_figure(ids, selected: pd.Index, mode: str, n_genes: int = 8, height: int = 330) -> go.Figure:
+def mutation_figure(ids, selected: pd.Index, mode: str, n_genes: int = 8, height: int = 330,
+                    clusters: pd.Series | None = None) -> go.Figure:
     if len(ids) < MIN_PATIENTS:
         return empty_figure(f"Fewer than {MIN_PATIENTS} patients after filtering", height)
     muts = load_data().mutations.loc[ids]
     genes = top_mutated(ids, n_genes)
     labels = [g.upper() for g in genes]
 
-    if mode == "subtype":
-        sub = load_data().clinical.loc[ids, "pam50_subtype"].astype(str)
-        groups = [s for s in V.categories("clin:pam50_subtype", sub) if s not in ("NC", UNKNOWN)]
+    if mode in ("subtype", "cluster"):
+        if mode == "cluster" and clusters is not None:
+            from src.figures_clusters import NOISE, cluster_order
+            sub = clusters.reindex(ids).fillna("Not clustered")
+            groups = [c for c in cluster_order(sub[sub != "Not clustered"]) if c != NOISE]
+            xtitle = "Cluster (Clusters page)"
+        else:
+            sub = load_data().clinical.loc[ids, "pam50_subtype"].astype(str)
+            groups = [s for s in V.categories("clin:pam50_subtype", sub) if s not in ("NC", UNKNOWN)]
+            xtitle = "PAM50 subtype"
         cols = ["All"] + groups
         z = np.array([[muts[g].mean() * 100] + [muts.loc[sub == s, g].mean() * 100 for s in groups] for g in genes])
         n_per = [len(muts)] + [int((sub == s).sum()) for s in groups]
@@ -251,7 +259,7 @@ def mutation_figure(ids, selected: pd.Index, mode: str, n_genes: int = 8, height
                           "<br><i>Click to select these mutated patients</i><extra></extra>"))
         fig.add_vline(x=0.5, line_color=theme.SURFACE, line_width=6)
         fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), clickmode="event",
-                          xaxis=dict(showgrid=False, title="PAM50 subtype"),
+                          xaxis=dict(showgrid=False, title=xtitle, type="category"),
                           yaxis=dict(showgrid=False, autorange="reversed"))
         return fig
 
@@ -280,7 +288,13 @@ def mutation_figure(ids, selected: pd.Index, mode: str, n_genes: int = 8, height
 # --------------------------------------------------------------------------- #
 # Cluster heatmap (mean expression per group + gene dendrogram)
 # --------------------------------------------------------------------------- #
-def expression_groups(ids, selected: pd.Index, mode: str) -> tuple[pd.Series, list[str], dict]:
+def expression_groups(ids, selected: pd.Index, mode: str,
+                      clusters: pd.Series | None = None) -> tuple[pd.Series, list[str], dict]:
+    if mode == "cluster" and clusters is not None:
+        from src.figures_clusters import NOISE, cluster_colors, cluster_order
+        g = clusters.reindex(ids).fillna("Not clustered")
+        order = [c for c in cluster_order(g[g != "Not clustered"]) if c != NOISE]
+        return g, order, cluster_colors(order)
     if mode == "selection" and len(selected):
         g = pd.Series(np.where(pd.Index(ids).isin(selected), "Selection", "Rest"), index=ids)
         return g, ["Selection", "Rest"], {"Selection": SELECTION_COLOR, "Rest": REST_COLOR}
@@ -301,11 +315,11 @@ def between_group_share(expr: pd.DataFrame, groups: pd.Series, order: list[str])
 
 
 def expression_heatmap(ids, selected: pd.Index, mode: str, n_genes: int = 20, corrected: bool = False,
-                       height: int = 330) -> tuple[go.Figure, list[str]]:
+                       height: int = 330, clusters: pd.Series | None = None) -> tuple[go.Figure, list[str]]:
     if len(ids) < MIN_PATIENTS:
         return empty_figure(f"Fewer than {MIN_PATIENTS} patients after filtering", height), []
     expr = mrna_matrix(corrected).loc[ids]
-    groups, order, cmap = expression_groups(ids, selected, mode)
+    groups, order, cmap = expression_groups(ids, selected, mode, clusters)
     order = [o for o in order if (groups == o).sum() >= 3]
     if len(order) < 2:
         return empty_figure("Need at least two groups of 3 patients", height), []

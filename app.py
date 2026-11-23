@@ -10,6 +10,7 @@ selection bar + the current page (pages/*.py, registered with Dash Pages).
 from __future__ import annotations
 
 import sys
+import threading
 
 import dash
 from dash import Dash, dcc, html
@@ -24,6 +25,21 @@ except DatasetMissingError as error:
     sys.exit(f"\n{error}\n")
 
 register_template()
+
+
+def _warm_up_umap() -> None:
+    """UMAP compiles its code (numba) the first time it runs, which adds ~15-20 s to the first
+    'Run'. Doing it once in the background at start-up hides that delay from the user."""
+    try:
+        import numpy as np
+
+        from src.algorithms import umap
+        umap(np.random.default_rng(0).normal(size=(60, 5)), n_neighbors=5)
+    except Exception:  # the warm-up is only an optimisation
+        pass
+
+
+threading.Thread(target=_warm_up_umap, daemon=True).start()
 
 app = Dash(
     __name__,
@@ -41,6 +57,7 @@ app.layout = html.Div([
     dcc.Store(id="filtered-ids"),
     dcc.Store(id="selected", data=None),
     dcc.Store(id="manual-filter", data=EMPTY_MANUAL),
+    dcc.Store(id="cluster-result", data=None),     # last projection + clustering (Clusters page), used app-wide
     header(),
     help_panel(),
     html.Div([

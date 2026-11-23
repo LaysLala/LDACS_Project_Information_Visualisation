@@ -96,8 +96,14 @@ def subtype_bars(df: pd.DataFrame, selected: pd.Index, height: int = 300) -> go.
 # --------------------------------------------------------------------------- #
 # Kaplan-Meier
 # --------------------------------------------------------------------------- #
-def survival_groups(df: pd.DataFrame, split: str, selected: pd.Index) -> tuple[pd.Series, list, dict]:
+def survival_groups(df: pd.DataFrame, split: str, selected: pd.Index,
+                    clusters: pd.Series | None = None) -> tuple[pd.Series, list, dict]:
     """Group label per patient, group order and colours for a survival split."""
+    if split == "cluster" and clusters is not None:
+        from src.figures_clusters import NOISE, cluster_colors, cluster_order
+        groups = clusters.reindex(df.index).fillna("Not clustered")
+        order = [c for c in cluster_order(clusters[clusters.index.isin(df.index)]) if c != NOISE]
+        return groups, order, cluster_colors(order)
     if split == "selection":
         groups = pd.Series(np.where(df.index.isin(selected), "Selection", "Rest"), index=df.index)
         return groups, ["Selection", "Rest"], {"Selection": SELECTION_COLOR, "Rest": REST_COLOR}

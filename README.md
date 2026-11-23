@@ -88,6 +88,8 @@ Then open <http://127.0.0.1:8050> in a web browser.
 │   ├── components.py       header, filter sidebar, selection bar, cards
 │   ├── figures.py          figure builders (Overview page)
 │   ├── figures_relationships.py   figure builders (Relationships & genomics page)
+│   ├── figures_clusters.py figure builders (Clusters & projections page)
+│   ├── compute.py          cached projections and clusterings (heavy computations)
 │   ├── variables.py        clinical / gene / mutation variables shared by the charts
 │   ├── stats.py            Kaplan-Meier, log-rank test, mutual information
 │   ├── algorithms.py       dimensionality reduction, clustering, quality measures

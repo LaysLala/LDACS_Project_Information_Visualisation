@@ -79,7 +79,8 @@ layout = html.Div([
                  dcc.RadioItems(id="rel-mut-mode", className="segmented", inline=True, value="selection",
                                 persistence=True,
                                 options=[{"label": "Selection vs rest", "value": "selection"},
-                                         {"label": "By subtype", "value": "subtype"}]),
+                                         {"label": "By subtype", "value": "subtype"},
+                                         {"label": "By cluster", "value": "cluster"}]),
                  labelled("Genes", dcc.Dropdown(id="rel-mut-n", options=[8, 12, 16], value=8, clearable=False,
                                                 searchable=False, className="mini-dropdown")),
              ],
@@ -95,6 +96,7 @@ layout = html.Div([
                  dcc.RadioItems(id="rel-heat-mode", className="segmented", inline=True, value="subtype",
                                 persistence=True,
                                 options=[{"label": "PAM50 subtypes", "value": "subtype"},
+                                         {"label": "Clusters", "value": "cluster"},
                                          {"label": "Selection vs rest", "value": "selection"}]),
                  labelled("Genes", dcc.Dropdown(id="rel-heat-n", options=[10, 15, 25], value=15, clearable=False,
                                                 searchable=False, className="mini-dropdown")),
@@ -183,13 +185,22 @@ def pair_select(click, box, x, y, filtered, cohort):
 # --------------------------------------------------------------------------- #
 # Mutation frequency
 # --------------------------------------------------------------------------- #
+def _clusters(res):
+    return pd.Series(res["labels"], index=res["ids"]) if res else None
+
+
+NO_CLUSTERS = "No clustering yet: run one on the Clusters & projections page. Showing PAM50 subtypes meanwhile."
+
+
 @callback(Output("rel-mut", "figure"), Output("rel-mut-note", "children"),
           Input("filtered-ids", "data"), Input("selected", "data"), Input("rel-mut-mode", "value"),
-          Input("rel-mut-n", "value"))
-def mutations(filtered, selected, mode, n):
+          Input("rel-mut-n", "value"), Input("cluster-result", "data"))
+def mutations(filtered, selected, mode, n, res):
     ids = pd.Index(filtered or [])
     sel = _sel(selected, filtered)
-    fig = FR.mutation_figure(ids, sel, mode, n)
+    if mode == "cluster" and not res:
+        return FR.mutation_figure(ids, sel, "subtype", n), NO_CLUSTERS
+    fig = FR.mutation_figure(ids, sel, mode, n, clusters=_clusters(res))
     if mode == "selection" and not len(sel):
         note = "No selection: showing all filtered patients. Select patients anywhere to compare them with the rest."
     else:
@@ -198,8 +209,9 @@ def mutations(filtered, selected, mode, n):
 
 
 @callback(Output("selected", "data", allow_duplicate=True), Input("rel-mut", "clickData"),
-          State("rel-mut-mode", "value"), State("filtered-ids", "data"), prevent_initial_call=True)
-def mutation_select(click, mode, filtered):
+          State("rel-mut-mode", "value"), State("filtered-ids", "data"), State("cluster-result", "data"),
+          prevent_initial_call=True)
+def mutation_select(click, mode, filtered, res):
     if not click or not click.get("points"):
         return no_update
     custom = click["points"][0]["customdata"]
@@ -208,9 +220,15 @@ def mutation_select(click, mode, filtered):
     ids = pd.Index(filtered or [])
     mask = d.mutations.loc[ids, gene] == 1
     source = f"{gene.upper()} mutated"
-    if mode == "subtype" and custom[1] != "All":
-        mask &= d.clinical.loc[ids, "pam50_subtype"].astype(str) == custom[1]
-        source += f" in {custom[1]}"
+    if mode in ("subtype", "cluster") and len(custom) > 1 and custom[1] != "All":
+        if mode == "cluster" and res:
+            groups = _clusters(res).reindex(ids)
+            where = f"cluster {custom[1]}"
+        else:
+            groups = d.clinical.loc[ids, "pam50_subtype"].astype(str)
+            where = custom[1]
+        mask &= (groups == custom[1]).to_numpy()
+        source += f" in {where}"
     return make_selection(ids[mask.to_numpy()], source + " (Relationships)")
 
 
@@ -219,12 +237,15 @@ def mutation_select(click, mode, filtered):
 # --------------------------------------------------------------------------- #
 @callback(Output("rel-heat", "figure"), Output("rel-heat-note", "children"),
           Input("filtered-ids", "data"), Input("selected", "data"), Input("rel-heat-mode", "value"),
-          Input("rel-heat-n", "value"), Input("cohort-correction", "value"))
-def heatmap(filtered, selected, mode, n, cohort):
+          Input("rel-heat-n", "value"), Input("cohort-correction", "value"), Input("cluster-result", "data"))
+def heatmap(filtered, selected, mode, n, cohort, res):
     ids = pd.Index(filtered or [])
     sel = _sel(selected, filtered)
     corrected = "on" in (cohort or [])
-    fig, genes = FR.expression_heatmap(ids, sel, mode, n, corrected)
+    if mode == "cluster" and not res:
+        fig, genes = FR.expression_heatmap(ids, sel, "subtype", n, corrected)
+        return fig, NO_CLUSTERS
+    fig, genes = FR.expression_heatmap(ids, sel, mode, n, corrected, clusters=_clusters(res))
     if mode == "selection" and not len(sel):
         note = "No selection: showing PAM50 subtypes. Select patients anywhere to compare them with the rest."
     else:
