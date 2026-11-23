@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: Phase 5 feedback round (2026-11-23). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: survival change (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -17,6 +17,7 @@ Read it before the TA meeting and again before the oral exam. Every number quote
 5. [Key numbers cheat sheet](#5-key-numbers-cheat-sheet)
 6. [Known limitations (say them before they are asked)](#6-known-limitations)
 7. [Glossary](#7-glossary)
+8. [Must go in the report](#8-must-go-in-the-report)
 
 ---
 
@@ -35,7 +36,7 @@ Read it before the TA meeting and again before the oral exam. Every number quote
 
 | Page | Cards | User questions answered |
 |---|---|---|
-| **1. Overview** | KPI tiles · patients per subtype · Kaplan–Meier survival · distribution of a variable · categorical breakdown | Q1 what does my (filtered) cohort look like? Q3 does survival differ between groups? |
+| **1. Overview** | KPI tiles · patients per subtype · survival over the first 5 years · distribution of a variable · categorical breakdown | Q1 what does my (filtered) cohort look like? Q3 does survival differ between groups? |
 | **2. Relationships & genomics** | association matrix (mutual information / Spearman) · adaptive pair view · mutation frequency · cluster heatmap | Q2 how are variables linked? Q4 which genes / mutations differ in a group? |
 | **3. Clusters & projections** | settings + Run · projection scatter · quality (choose-k, R_NX, dendrogram) · clusters vs subtypes · survival per cluster | Q5 structure in gene expression? Q6 do clusters match subtypes / prognosis? Q7 outliers? |
 
@@ -68,7 +69,7 @@ Format: **Decision**: why. *(Course link.)*
 | Keep **tumour stage** (26% missing) with "Unknown" | Clinically important; dropping the column (our first draft) or the rows (−26% of patients) loses too much. |
 | `mutation_count` missing → **0** | Missing for exactly the 45 patients with no mutated gene in the panel (and r = 0.97 with the number of mutated genes elsewhere): missing means "none found", not "unknown". The only data-justified fill. |
 | Fixes: `Positve` → `Positive`, 0/1 treatments → No/Yes, fixed category order | Consistency: every chart and filter lists categories the same way (grid 3.3). |
-| Derived survival columns: `os_event`, `dss_event`, `vital_status` | Needed for Kaplan–Meier; see Phase 1. |
+| Derived survival columns: `os_event`, `dss_event`, `vital_status` | Needed for the survival chart; see Phase 1. |
 | `overall_survival_months` labelled **"Follow-up time (months)"** | For living patients it is time followed so far, not survival. |
 | mRNA: **no extra scaling** | Every gene already has mean 0, sd 1 in this cohort (z-scores). Scaling again changes nothing. |
 
@@ -94,25 +95,20 @@ Format: **Decision**: why. *(Course link.)*
 - **Cross-table** PAM50 × integrative cluster: Basal → cluster 10 (69%), Her2 → cluster 5 (47%), luminal subtypes spread out.
 
 **Survival**
-- **Kaplan–Meier** curves, not "% deceased": follow-up time differs per patient (censoring).
-- **Disease-specific** survival by default (death from breast cancer = event; death of another cause = censored), because
-  480 patients died of other causes.
-- Curves stop when **< 10 patients remain at risk** (otherwise one death makes the curve jump, down to 0% for the last patient).
-- **Log-rank test** across subtypes: χ² = 94.4, df = 5, p ≈ 8 × 10⁻¹⁹. Basal and Luminal B curves **cross** after ~12 years.
+- **Share alive per month**, not "% deceased": follow-up time differs per patient (censoring). For each month t, the
+  share of patients still alive among those whose status at t is known (see §4 "Our own questions").
+- Shown over the **first 5 years** only: after that, patients recruited late are missing from the share and the curve
+  falls too fast.
+- **Disease-specific** survival by default (death from breast cancer = event; death of another cause is not an event),
+  because 480 patients died of other causes.
+- A curve stops when **< 10 patients have a known status**.
+- Alive at 5 years: LumA 93%, LumB 80%, claudin-low 82%, Normal 84%, Her2 67%, Basal 63%.
 
 **Genes and mutations**
 - Sanity check: *GATA3* high in ER+, *ERBB2* high in HER2+ (the panel has no *ESR1* / *PGR* / *MKI67*).
 - Basal-like: low luminal genes (*GATA3*, *BCL2*, *MAPT*, *ERBB3*), high cell-cycle genes (*CCNE1*, *AURKA*, *E2F3*).
   Luminal B vs A: higher proliferation.
 - Mutations: *PIK3CA* 42% overall (57% of LumA); *TP53* 35% overall (88% of Basal, 70% of Her2); *GATA3* absent in Basal.
-
-**Batch effect, the key finding**
-- Colouring PCA by the **sampling cohort**: **PC1 is mostly cohort** (normalized MI 0.17 vs ≤ 0.04 for subtype/ER).
-  The biology (ER, subtype, grade) is on PC2. This is a technical **batch effect**.
-- Correction (`remove_cohort_effect`): centre each gene within its cohort, then re-standardise. Safe because the cohorts have
-  the same subtype mix (normalized MI cohort ↔ PAM50 = 0.015). After correction: cohort ↔ PCs ≤ 0.01, PC1 = ER/subtype axis.
-- **Dashboard: no correction** (removed in the feedback round: too hard to interpret for a user). The correction is
-  explored in the notebook only, which uses the corrected data from §7.3 on.
 
 **Dimensionality reduction** (on the 489 mRNA z-scores; clinical variables only colour the points)
 - PCA: PC1 explains ~8%; 33 PCs for 50% of variance, 161 for 80%. No elbow: a 2-D PCA shows a small part of the structure.
@@ -127,8 +123,8 @@ Format: **Decision**: why. *(Course link.)*
 - **K-means, choosing k**: W decreases only ~13% from k = 2 to 10 (no elbow); B increases smoothly; Calinski–Harabasz is
   highest at k = 2 and decreases. → No well-separated clusters.
 - k = 2 reproduces **ER+/luminal vs ER−/basal** (normalized MI with ER = 0.52).
-- k = 6: three clusters dominated by one subtype; **purity 0.59** vs 0.36 baseline. Survival differs between clusters
-  (χ² = 102.4, p ≈ 2 × 10⁻²⁰), as strongly as between subtypes.
+- k = 6: three clusters dominated by one subtype; **purity 0.59** vs 0.36 baseline. 5-year survival per cluster
+  ranges from 65% to 92%, as wide as between subtypes (63% to 93%).
 - **Hierarchical**, 5 clusters: Ward [711, 528, 312, 212, 141]; complete [1727, 98, 60, 18, 1]; average and single
   collapse; **centroid** [1900, 1, 1, 1, 1] with **403 inversions**. → **Ward is the default**; the others stay available
   to show the effect.
@@ -138,8 +134,6 @@ Format: **Decision**: why. *(Course link.)*
 - **The 18 patients**: all from cohort 1, mixed subtypes, extreme values (z ≈ +4 to +7) on a few unrelated genes
   (*SMAD5*, *MSH2*, *PPP2CB*…) → most likely a **technical artefact**. The dashboard lets the user select and exclude them.
 
-**Removed from the notebook** (by us): the supervised-learning appendix (logistic regression, XGBoost, SHAP): not part of
-the course and not needed by the dashboard.
 
 ### Phase 1b: UI design (sketch canvas v2)
 
@@ -154,8 +148,6 @@ the course and not needed by the dashboard.
 | **Pair view** adapts to variable types (cross-table / scatter / box) and accepts genes | One linked view replaces three static cards | |
 | **Cluster heatmap** (heatmap + dendrogram) | Course idiom to assess clusters | VAD Ch. 7 |
 | Heavy algorithms behind a **Run** button, spinner, cache; PCA precomputed | Responsiveness rule: 0.1 s / 1 s / 10 s | VAD rules of thumb; brief §4 |
-| ~~Cohort-correction toggle~~ (removed in the feedback round) | too hard to interpret for a dashboard user | |
-| **Trimmed** (outside the course, heavy to justify): Fisher/t-tests, volcano plot, oncoprint, silhouette, ARI, Cramér's V, CI band | Stay within the course; fewer, stronger views | course scope |
 
 ### Phase 2: app skeleton + Overview page (`app.py`, `pages/`, `src/state.py`, `src/figures.py`, …)
 
@@ -176,7 +168,7 @@ the course and not needed by the dashboard.
 |---|---|---|
 | KPI tiles (patients, median age, 5-year disease-specific survival, % died of breast cancer, median follow-up), with the selection's value underneath | recomputed on every filter / selection | brief §3.2 "compute properties"; grid 2.1 |
 | Patients per subtype (bars) | **click a bar → select** that subtype; with a selection, pale = all, solid = selected | linked highlighting |
-| Kaplan–Meier | split by any categorical variable (≤ 8 groups) or **selection vs rest**; disease-specific / overall; log-rank as text; groups < 10 patients left out (said under the chart) | |
+| Survival over the first 5 years | share alive per month (months 0 to 60); split by any categorical variable (≤ 8 groups) or **selection vs rest**; disease-specific / overall; 5-year values as text under the chart; groups < 10 patients left out (said under the chart) | TP1 line chart; Kaplan–Meier until 2026-11-23 |
 | Distribution | histogram or box; mean/median lines; log scale (log(1 + x), ticks labelled in real values); **bin slider**; **drag a range → select**; with a selection both groups shown as **% of their own group** to compare shapes | TP1 bins; VAD "eyes beat memory" |
 | Categorical breakdown | 100% stacked bars, all vs selection; **click a segment → select** | |
 | Sidebar | subtype checklist with **live counts** (scented widget), receptors, age range, stage, grade, vital status, treatments; stays visible while scrolling | VAD scented widgets; grid 4.1 |
@@ -256,7 +248,7 @@ many genes, p-values would need multiple-testing correction, which is outside th
 | **Projection** | 2-D scatter; colour by cluster, any clinical variable, any gene (diverging scale) or mutation; PCA axes show % variance, t-SNE/UMAP axes hidden | **lasso / box → selection** on every page | DR lecture; VAD linked highlighting |
 | **Diagnostics** | *Choose k*: W, B, Calinski–Harabasz for k = 2..8 (current k circled); for DBSCAN the sorted **k-distance curve** with eps; *Quality*: **R_NX(K)** + AUC; *Dendrogram*: top 30 branches, cut line, **inversion warning** | **click a branch → select its patients** | TP3, lectures 05–06, TP6 |
 | **Clusters vs subtypes** | row % cluster × PAM50 + a "whole cluster" column with sizes; **purity** vs one-cluster baseline | click → select the cluster or cluster ∩ subtype | TP3 "accuracy" |
-| **Survival per cluster** | Kaplan–Meier per cluster + log-rank | | "what are clusters useful for?" |
+| **Survival per cluster** | share alive per month over the first 5 years, one line per cluster | | "what are clusters useful for?" |
 
 **Clusters are shared app-wide**: after a Run, the Overview survival chart can split **by cluster**, and the mutation and
 cluster-heatmap cards of page 2 have a **"By cluster"** mode (what does each cluster mean biologically?).
@@ -306,7 +298,7 @@ ids-only stores, and the other charts never wait for a heavy computation.
 
 **Simplicity review against the course.** Everything the app does was re-checked against the practical sessions, the
 clustering and DR lectures and Munzner's slides. Outside the course remain only the four justified items (Kaplan–Meier,
-Spearman, Ward as default; the cohort correction was later removed). Three controls were **removed** because they added a concept without
+Spearman, Ward as default; the cohort correction and Kaplan–Meier were later removed). Three controls were **removed** because they added a concept without
 adding insight:
 
 | Removed | Replaced by |
@@ -353,11 +345,28 @@ for a laptop/desktop screen (it stacks on narrow screens but is not optimised fo
 | Clicking a subtype did not change the survival chart | a **new selection switches the survival chart to "selection vs rest"**; clearing it switches back to subtypes; the user can still pick another split |
 | *Keep only / Exclude* did not update the sidebar | a selection made on a variable that has a sidebar control (subtype, ER/PR/HER2, stage, grade, vital status, treatments, age range) now **changes that control**: keep only Basal ticks only Basal, exclude ER+ sets ER to "−", keep age 40–50 moves the slider. Selections without a matching control (lasso, dendrogram branch, lymph-node range…) still become a list of kept/excluded patients, reported under the sidebar |
 | Survival and distribution charts overflowed their cards | every chart has **one height used by both the container and the figure** (they had drifted apart) |
+| "PAM50 subtype" was not accurate (claudin-low comes from another classifier) | renamed **"Molecular subtype (PAM50 + claudin-low)"** in axes, legends, dropdowns and help |
 | The cohort (batch) correction was confusing | **removed from the dashboard** (sidebar toggle, corrected-data code paths, help text). The finding stays in the notebook, which now defines the correction itself |
 
-**Consequence for numbers:** the notebook's clustering results (e.g. K-means k = 6 purity 0.59, survival χ² 102) were
+**Consequence for numbers:** the notebook's clustering results (e.g. K-means k = 6 purity 0.59, 5-year survival 65–92%) were
 computed on the *corrected* data; the dashboard works on the published data, so its values differ (e.g. K-means k = 4
-purity 0.46, χ² 22). Quote the dashboard's values when demonstrating the dashboard.
+purity 0.46, 5-year survival 65–86%). Quote the dashboard's values when demonstrating the dashboard.
+
+### Survival without Kaplan–Meier (2026-11-23)
+
+Kaplan–Meier and the log-rank test were not in the course and would have been hard to defend at the exam. They were
+**replaced by a simple in-course measure**: for each month t, the share of patients still alive among the patients whose
+status at t is known, drawn as a line chart over the **first 5 years**.
+
+| Before | After |
+|---|---|
+| Kaplan–Meier curves up to 30 years, stopped at < 10 patients at risk | share alive per month, months 0 to 60, stopped at < 10 patients with a known status |
+| log-rank χ², df, p under the chart | "Alive at 5 years: LumA 93% · …" under the chart |
+| `stats.kaplan_meier`, `stats.median_survival`, `stats.logrank_test`, `figures.km_figure` | `stats.survival_share`, `stats.survival_at`, `figures.survival_figure` (old functions deleted) |
+| KPI "5-year DSS" from Kaplan–Meier | KPI "Alive at 5 years" from the share |
+
+The notebook (section 5 and the cluster-survival cell) was patched the same way. Up to 5 years the share agrees with
+Kaplan–Meier within about one point (all patients: 81% vs 82%).
 
 ---
 
@@ -381,7 +390,7 @@ purity 0.46, χ² 22). Quote the dashboard's values when demonstrating the dashb
 | Linked views, filtering, aggregation, colour rules, rules of thumb | whole app | VAD (Munzner) | ✅ | |
 | Cluster heatmap (heatmap + dendrogram) | Relationships page | VAD Ch. 7 | ✅ | |
 | Between-group variation B (gene ranking) | Relationships heatmap | lecture 06 (CH index) | ✅ | applied per gene |
-| **Kaplan–Meier + log-rank** | Overview, Clusters | not in course | ⚠️ | survival is the dataset's main outcome; a KM curve is derived data shown as superimposed lines (VAD); "% deceased" would be misleading with censoring |
+| Survival share per month (first 5 years) | Overview, Clusters | TP1 (proportions, line chart); VAD Ch. 2 (derived attribute) | ✅ | replaces Kaplan–Meier + log-rank (removed 2026-11-23) |
 | **Spearman** | association matrix | not explicit | ⚠️ | small step from TP1's Pearson; justified by skewness |
 | **Cohort (batch) correction** | notebook only | not in course | ⚠️ | found *with* a course tool (PCA coloured by a label); removed from the dashboard (too hard to interpret) |
 
@@ -451,16 +460,16 @@ embeddings offline (DR lecture: O(N²) methods need tree-based or multipole appr
 
 ### Survival
 
-**Why Kaplan–Meier instead of a bar chart of deaths?** Censoring: a patient alive after 2 years of follow-up and one alive
-after 20 years would count the same. KM uses the time each patient was observed.
+**Why a curve over time instead of a bar chart of deaths?** Censoring: a patient alive after 2 years of follow-up and one
+alive after 20 years would count the same. The curve uses, at each month, only the patients whose status is known.
 
 **Why disease-specific survival?** 480 patients died of other causes; that says little about their tumour.
 
-**What does the log-rank test assume?** Non-informative censoring; it is most powerful when hazards are proportional.
-With crossing curves (Basal vs Luminal B) it loses power, which is why we show the curves, not only p.
+**Why only the first 5 years?** After that, the share is biased downwards (see "Our own questions" below). 5-year
+survival is also the usual clinical summary.
 
-**Why do the curves stop before the end?** Below 10 patients at risk, each death makes a large jump (to 0% at the last
-patient); the tail would be misleading.
+**Why do some groups not appear?** A group needs at least 10 patients with a known status; smaller groups are listed
+under the chart as "not shown".
 
 ### Dimensionality reduction
 
@@ -513,6 +522,78 @@ table), and finding artefacts (the 18 patients).
 **Can you cross-filter with hierarchical clustering?** Yes: clicking a dendrogram branch selects its patients in all views;
 dragging the cut line changes the number of clusters.
 
+### Our own questions (Renan, 2026-11-23), with answers
+
+**What exactly is an mRNA z-score?** One value per patient and gene: the tumour's expression of that gene, standardised
+over all 1,904 patients: z = (expression in this patient − mean of the gene) / standard deviation of the gene.
+z = 0: like the average patient; z = +2: 2 SD above average (gene strongly "switched on"); z = −2: well below. Example:
+*ERBB2* (the gene that makes HER2) averages +2.14 in HER2-positive patients and −0.30 in the others. A z-score is
+relative to its own gene: "GATA3 z = 1" and "AURKA z = 1" both mean "above that gene's average", not "equally active".
+This is also why no extra scaling is needed before PCA or clustering (every gene already has mean 0, SD 1).
+
+**Why not Kaplan–Meier, and is our survival chart in the course?** Kaplan–Meier (used until 2026-11-23) is not in the
+course, so we replaced it. The outcome of this dataset is *time to death*, and it is **censored** (801 patients were alive
+at their last follow-up: we only know they survived *at least* that long); "% deceased" would count a patient followed 1
+year like one followed 20 years. Our chart is a **proportion per month** (TP1-level statistics) drawn as **superimposed
+line charts** (a course idiom), i.e. a **derived attribute** (Munzner Ch. 2).
+
+**How is the survival share computed?** For each month t from 0 to 60:
+*alive* = patients followed for more than t months; *dead* = patients who died (of breast cancer, by default) at or before
+t; *known* = alive + dead; **share = alive / known**. A patient whose follow-up ended before t, still alive, is left out
+at t (we do not know their status). Toy example, 5 patients: deaths at 10 and 30 months, censored at 20, 40, 50 →
+at month 25: alive = 3 (30, 40, 50), dead = 1 (10), the one censored at 20 is left out → share = 3/4 = 75%.
+Code: `stats.survival_share`.
+
+**Why stop at 5 years?** Patients were recruited over many years, so at long horizons the patients recruited later
+(still alive, but not yet followed that long) drop out of the share while early deaths stay in, and the share falls too
+fast. Comparison with Kaplan–Meier, all patients, disease-specific:
+
+| Years | 2 | 5 | 10 | 15 | 20 |
+|---|---|---|---|---|---|
+| Kaplan–Meier | 95% | 82% | 71% | 64% | 57% |
+| Our share | 95% | 81% | 65% | 47% | 22% |
+
+Up to 5 years almost every patient's status is known and the two agree within about one point; that is why the chart
+shows months 0 to 60 only. Limitation: it compares groups visually; there is no test (the log-rank test was removed with
+Kaplan–Meier) and no adjustment for age or stage.
+
+**Why is Ward the default linkage?** Ward merges the two clusters whose union increases the within-cluster variation W
+the least: the K-means objective of lecture 04, applied step by step. On our data it is the **only linkage that works**
+(5 clusters, published data):
+
+| Linkage | Cluster sizes | Problem |
+|---|---|---|
+| **Ward** | 710, 689, 387, 100, 18 | none: balanced, no inversions |
+| Complete | ~90% in one cluster | crowding (lecture 05) |
+| Average | one giant cluster + singletons | chaining |
+| Single | 1,900 + four single patients | chaining (lecture 05) |
+| Centroid | 1,900 + singletons, 442 inversions | cannot be cut at a height (lecture 06) |
+
+The course linkages fail because in 489 dimensions all patients are about equally far apart (norm concentration, DR
+lecture). Ward's own limits: like K-means it prefers compact, similar-size clusters and needs Euclidean distances (fine
+for z-scores). Not in the slides, so it is justified, and the other linkages stay selectable to show why.
+
+**Why PCA, t-SNE, UMAP and K-means, hierarchical, DBSCAN?** The brief imposes the categories (K-means + one hierarchical
++ one density-based; one linear + one non-linear projection); within them we used what the practical sessions teach.
+
+| Method | Advantages | Disadvantages | On our data |
+|---|---|---|---|
+| PCA (linear, TP5) | fast, deterministic, meaningful axes (% variance, loadings); "always try PCA first" | only straight-line structure; PC1 = 8% | revealed the batch effect; best R_NX for large neighbourhoods |
+| t-SNE (non-linear, TP6) | best at keeping close neighbours | slow (~12 s), meaningless axes, can exaggerate or invent gaps | best R_NX for small neighbourhoods (AUC 0.27) |
+| UMAP (non-linear, TP6) | like t-SNE, scales better | slow first run (compilation), global layout "controversial" (Lee) | in between (AUC 0.19) |
+| K-means (TP2) | simple, fast, required by the brief | k must be chosen; round clusters; random start | k = 2 recovers ER+/ER− |
+| Hierarchical (TP3) | one tree gives every k; dendrogram → cross-filtering | O(n²) memory; linkage choice critical | only Ward works |
+| DBSCAN (TP3) | no k; any shape; labels outliers | very sensitive to eps; useless in 489-D | isolates the 18-patient artefact |
+
+We keep **both t-SNE and UMAP** to compare two non-linear methods (decision of 2026-11-23). **MDS (TP5) is not used**
+because classical MDS with Euclidean distances gives exactly the same embedding as PCA (DR lecture), so it would be
+redundant.
+
+**Is claudin-low a PAM50 subtype?** Not strictly: claudin-low comes from a separate classifier (Prat et al., 2010).
+METABRIC publishes the combination: the original column is `pam50_+_claudin-low_subtype` (five PAM50 subtypes plus
+claudin-low as a sixth group; NC = not classified). We keep the data as published and label it honestly:
+**"Molecular subtype (PAM50 + claudin-low)"** everywhere in the dashboard.
+
 ---
 
 ## 5. Key numbers cheat sheet
@@ -524,15 +605,15 @@ dragging the cut line changes the number of clusters.
 | Missing: tumour stage / 3-gene / laterality | 26.3% / 10.7% / 5.6% |
 | PAM50: LumA, LumB, Her2, Basal, claudin-low, Normal, NC | 679, 461, 220, 199, 199, 140, 6 |
 | Died of breast cancer / of other causes / living | 622 / 480 / 801 (+1 unknown) |
-| 5-year disease-specific survival: LumA / Basal | 93% / 64% |
-| Log-rank across subtypes | χ² 94.4, df 5, p ≈ 8 × 10⁻¹⁹ |
+| Alive at 5 years (disease-specific): all patients | 81% |
+| Alive at 5 years: LumA / LumB / Her2 / Basal / claudin-low / Normal | 93 / 80 / 67 / 63 / 82 / 84% |
 | Spearman NPI ↔ nodes / size | 0.73 / 0.52 |
 | NMI PAM50 ↔ 3-gene / ↔ ER; cohort ↔ PAM50 | 0.32 / 0.29; 0.015 |
 | PCA: PC1 variance; PCs for 50% / 80% | ~8%; 33 / 161 |
 | NMI PC1 ↔ cohort before / after correction | 0.17 / 0.00 |
 | R_NX AUC t-SNE / UMAP / PCA | 0.272 / 0.189 / 0.142 |
 | K-means k = 2 NMI with ER; k = 6 purity (baseline) | 0.52; 0.59 (0.36) |
-| Survival by K-means k = 6 | χ² 102.4, p ≈ 2 × 10⁻²⁰ |
+| Alive at 5 years per K-means k = 6 cluster (notebook) / k = 4 (dashboard) | 65–92% / 65–86% |
 | Centroid linkage inversions | 403 |
 | Outlier group | 18 patients, all cohort 1 |
 
@@ -543,7 +624,8 @@ dragging the cut line changes the number of clusters.
 - The gene panel lacks the PAM50 genes and classic markers (*ESR1*, *PGR*, *MKI67*), so subtype separation is weaker than
   in the literature.
 - The dashboard shows expression as published: the cohort (batch) effect found in the notebook is not corrected there.
-- Kaplan–Meier/log-rank compare groups; they do not adjust for confounders (age, stage) as a Cox model would.
+- The survival share is reliable only over the first 5 years (later, patients recruited late are missing and the curve
+  falls too fast). It compares groups visually, with no test and no adjustment for confounders (age, stage).
 - t-SNE/UMAP are stochastic (fixed seed for reproducibility) and their large-scale layout is not reliable.
 - Purity depends on k; mutual information values are low in absolute terms (0.3 is already strong).
 - DBSCAN on a UMAP embedding inherits UMAP's distortions.
@@ -560,9 +642,28 @@ dragging the cut line changes the number of clusters.
 | **NPI** | Nottingham Prognostic Index = 0.2 × tumour size (cm) + node stage + grade; higher = worse. |
 | **z-score** | (value − mean) / sd of the gene across patients; 0 = average expression. |
 | **Censoring** | The event (death) has not been observed by the end of follow-up; we only know survival ≥ follow-up time. |
+| **Survival share** | At month t, patients alive / patients whose status at t is known (alive or already dead). |
 | **Batch effect** | Technical difference between groups of samples processed separately. |
 | **Linkage** | Rule giving the distance between two clusters in hierarchical clustering. |
 | **Inversion** | A dendrogram merge drawn lower than the merge before it (centroid linkage). |
 | **R_NX(K)** | Rescaled share of K-nearest neighbours preserved by a projection (0 = random, 1 = perfect). |
 | **Purity** | Share of points whose cluster's majority label is their own label. |
 | **Normalized mutual information** | Mutual information divided by the variables' entropies, in [0, 1]. |
+
+---
+
+## 8. Must go in the report
+
+Points we decided must appear in the final report (in addition to the grid's 6.x items):
+
+- **Data**: what a z-score is (one value per patient and gene, standardised over the cohort) and why no extra scaling.
+- **Survival**: why a curve over time and not "% deceased" (censoring), the share alive / known with the toy example,
+  why only the first 5 years (the Kaplan–Meier comparison table), framed as *derived data + superimposed line charts*.
+- **Ward**: the linkage comparison table (sizes, inversions), the link to the K-means objective, and why the course
+  linkages fail here (norm concentration).
+- **Projections**: PCA vs t-SNE vs UMAP advantages / disadvantages, the R_NX comparison, and **why not MDS**
+  (classical MDS with Euclidean distances = PCA, DR lecture).
+- **Clustering**: K-means vs hierarchical vs DBSCAN advantages / disadvantages and what each showed on this data.
+- **Subtypes**: "PAM50 + claudin-low" and why it is labelled that way.
+- **Batch effect**: found in the notebook with PCA coloured by cohort; deliberately not offered in the dashboard.
+- **Simplicity decisions**: the controls we removed and why (Phase 5 table).

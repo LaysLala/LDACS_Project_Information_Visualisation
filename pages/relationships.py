@@ -73,7 +73,7 @@ layout = html.Div([
              [graph("rel-mut", H_MUT), html.P(id="rel-mut-note", className="card-note")],
              help_text="Share of patients with at least one mutation in each of the most frequently mutated "
                        "genes. 'Selection vs rest' compares the current selection with the other filtered "
-                       "patients on a common scale; 'By subtype' shows one column per PAM50 subtype. Click a "
+                       "patients on a common scale; 'By subtype' shows one column per molecular subtype. Click a "
                        "bar or a cell to select the mutated patients.",
              controls=[
                  dcc.RadioItems(id="rel-mut-mode", className="segmented", inline=True, value="selection",
@@ -95,7 +95,7 @@ layout = html.Div([
              controls=[
                  dcc.RadioItems(id="rel-heat-mode", className="segmented", inline=True, value="subtype",
                                 persistence=True,
-                                options=[{"label": "PAM50 subtypes", "value": "subtype"},
+                                options=[{"label": "Subtypes", "value": "subtype"},
                                          {"label": "Clusters", "value": "cluster"},
                                          {"label": "Selection vs rest", "value": "selection"}]),
                  labelled("Genes", dcc.Dropdown(id="rel-heat-n", options=[10, 15, 20], value=15, clearable=False,
@@ -187,7 +187,7 @@ def _clusters(res):
     return pd.Series(res["labels"], index=res["ids"]) if res else None
 
 
-NO_CLUSTERS = "No clustering yet: run one on the Clusters & projections page. Showing PAM50 subtypes meanwhile."
+NO_CLUSTERS = "No clustering yet: run one on the Clusters & projections page. Showing the molecular subtypes meanwhile."
 
 
 @callback(Output("rel-mut", "figure"), Output("rel-mut-note", "children"),
@@ -244,7 +244,7 @@ def heatmap(filtered, selected, mode, n, res):
         return fig, NO_CLUSTERS
     fig, genes = FR.expression_heatmap(ids, sel, mode, n, height=H_HEAT, clusters=_clusters(res))
     if mode == "selection" and not len(sel):
-        note = "No selection: showing PAM50 subtypes. Select patients anywhere to compare them with the rest."
+        note = "No selection: showing the molecular subtypes. Select patients anywhere to compare them with the rest."
     else:
         note = f"{len(genes)} genes that differ most between the groups · rows ordered by a dendrogram (Ward)"
     return fig, note

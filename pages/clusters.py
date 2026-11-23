@@ -5,8 +5,8 @@ Settings + Run  -> projection (PCA / t-SNE / UMAP) and clustering (K-means / hie
                    on the 489 mRNA z-scores of the filtered patients; cached, stored app-wide
 Projection      -> coloured by cluster or any variable; lasso / box = selection
 Diagnostics     -> choose k (W, B, CH) or k-distance (DBSCAN) · R_NX quality · dendrogram (click a branch)
-Composition     -> cluster x PAM50 subtype + purity (click = selection)
-Survival        -> Kaplan-Meier per cluster
+Composition     -> cluster x molecular subtype + purity (click = selection)
+Survival        -> share alive over the first 5 years, per cluster
 """
 
 from __future__ import annotations
@@ -126,11 +126,11 @@ diagnostics_card = card("Diagnostics", [
 layout = html.Div([
     html.Div([settings, projection_card, diagnostics_card], className="row"),
     html.Div([
-        card("Clusters vs PAM50 subtypes", [
+        card("Clusters vs molecular subtypes", [
             dcc.Loading(dcc.Graph(id="cl-comp", config=SIMPLE_CONFIG, style={"height": "260px"}),
                         type="dot", delay_show=300, color=CATEGORICAL[0]),
             html.P(id="cl-comp-note", className="card-note"),
-        ], help_text="Share of each cluster made of each PAM50 subtype (row %). Purity = share of patients whose "
+        ], help_text="Share of each cluster made of each molecular subtype (row %). Purity = share of patients whose "
                      "cluster's most frequent subtype is their own; compare it with the baseline of one cluster "
                      "for everybody. Click 'Whole cluster' or a cell to select those patients.",
            class_name="span-5"),
@@ -138,7 +138,7 @@ layout = html.Div([
             dcc.Loading(dcc.Graph(id="cl-km", config=SIMPLE_CONFIG, style={"height": "260px"}),
                         type="dot", delay_show=300, color=CATEGORICAL[0]),
             html.P(id="cl-km-note", className="card-note"),
-        ], help_text="Kaplan-Meier curves per cluster: do clusters found from gene expression alone have "
+        ], help_text="Share of patients alive at each month of the first 5 years, per cluster: do clusters found from gene expression alone have "
                      "different prognosis? Same rules as on the Overview page.",
            controls=[dcc.RadioItems(id="cl-km-event", className="segmented", inline=True, value="dss_event",
                                     options=[{"label": "Disease-specific", "value": "dss_event"},
@@ -352,4 +352,4 @@ def survival(res, filtered, event):
     clusters = _cluster_series(res, filtered)
     df = load_data().clinical.loc[clusters.index]
     order = [c for c in FC.cluster_order(clusters) if c != FC.NOISE]
-    return figures.km_figure(df, clusters, order, FC.cluster_colors(order), event=event, height=260)
+    return figures.survival_figure(df, clusters, order, FC.cluster_colors(order), event=event, height=260)

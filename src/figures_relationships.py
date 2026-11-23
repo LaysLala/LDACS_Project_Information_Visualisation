@@ -26,7 +26,7 @@ from src.figures import ALL_COLOR, REST_COLOR, SELECTION_COLOR, empty_figure
 ASSOC_CATEGORICAL = ["pam50_subtype", "er_status", "pr_status", "her2_status", "three_gene_subtype",
                      "integrative_cluster", "neoplasm_histologic_grade", "tumor_stage", "vital_status"]
 SHORT = {
-    "pam50_subtype": "PAM50", "er_status": "ER", "pr_status": "PR", "her2_status": "HER2",
+    "pam50_subtype": "Subtype", "er_status": "ER", "pr_status": "PR", "her2_status": "HER2",
     "three_gene_subtype": "3-gene", "integrative_cluster": "Integr. cluster", "neoplasm_histologic_grade": "Grade",
     "tumor_stage": "Stage", "vital_status": "Vital status", "age_at_diagnosis": "Age", "tumor_size": "Tumor size",
     "lymph_nodes_examined_positive": "Pos. nodes", "nottingham_prognostic_index": "NPI",
@@ -243,7 +243,7 @@ def mutation_figure(ids, selected: pd.Index, mode: str, n_genes: int = 8, height
         else:
             sub = load_data().clinical.loc[ids, "pam50_subtype"].astype(str)
             groups = [s for s in V.categories("clin:pam50_subtype", sub) if s not in ("NC", UNKNOWN)]
-            xtitle = "PAM50 subtype"
+            xtitle = "Molecular subtype"
         cols = ["All"] + groups
         z = np.array([[muts[g].mean() * 100] + [muts.loc[sub == s, g].mean() * 100 for s in groups] for g in genes])
         n_per = [len(muts)] + [int((sub == s).sum()) for s in groups]

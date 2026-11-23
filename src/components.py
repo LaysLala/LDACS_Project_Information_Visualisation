@@ -113,7 +113,7 @@ def sidebar() -> html.Aside:
             html.P("Apply to every view on every page.", className="muted"),
         ]),
         html.Fieldset([
-            html.Legend("PAM50 subtype"),
+            html.Legend("Molecular subtype"),
             dcc.Checklist(id="f-subtype", options=[subtype_option(s, None) for s in subtypes],
                           value=subtypes, className="subtype-list"),
         ]),
@@ -179,15 +179,17 @@ HELP_SECTIONS = [
     ("3 · Read the details", "Hover any mark for exact values. The (i) button on each card explains how "
                              "to read the chart."),
     ("Overview", "Who are the patients and how do they survive? Key numbers, subtypes, survival curves "
-                 "(Kaplan-Meier), distribution of any measurement, composition of any category."),
+                 "over the first 5 years, distribution of any measurement, composition of any category."),
     ("Relationships & genomics", "How are the variables linked? Click a cell of the matrix to open that "
                                  "pair below it; the pair view accepts clinical variables, genes and "
                                  "mutations. Which genes are mutated or expressed differently in a group?"),
     ("Clusters & projections", "Is there structure in the gene expression? Choose a projection and a "
                                "clustering algorithm, then press Run (t-SNE and UMAP take 10-30 s). The "
                                "clusters can then be used on the other pages ('by cluster')."),
-    ("Good to know", "Survival curves account for patients still alive at the end of follow-up "
-                     "(censoring) and stop when fewer than 10 patients remain at risk."),
+    ("Good to know", "Molecular subtypes are the five PAM50 subtypes (LumA, LumB, Her2, Basal, Normal) "
+                     "plus claudin-low, which METABRIC identifies with a separate classifier; NC = not "
+                     "classified. Survival charts show, month by month, the share of patients still alive "
+                     "among those whose status is known, over the first 5 years after diagnosis."),
 ]
 
 

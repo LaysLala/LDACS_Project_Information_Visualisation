@@ -139,7 +139,7 @@ LABELS: dict[str, str] = {
     "mutation_count": "Mutation count (sequenced panel)",
     "n_mutated_genes": "Mutated genes (of 173 in panel)",
     "overall_survival_months": "Follow-up time (months)",
-    "pam50_subtype": "PAM50 subtype",
+    "pam50_subtype": "Molecular subtype (PAM50 + claudin-low)",
     "vital_status": "Vital status",
     "er_status": "ER status",
     "pr_status": "PR status",

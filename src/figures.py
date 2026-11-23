@@ -19,7 +19,6 @@ from src import stats, theme
 from src.data import label
 from src.state import ordered_categories
 
-MIN_AT_RISK = 10      # a survival curve stops when fewer patients remain at risk
 MIN_GROUP = 10        # groups smaller than this are left out of survival curves
 SELECTION_COLOR = theme.CATEGORICAL[0]
 REST_COLOR = "#9a998f"
@@ -43,12 +42,12 @@ def kpis(df: pd.DataFrame) -> dict:
     """Headline numbers for a group of patients."""
     if len(df) == 0:
         return {"n": 0, "age": None, "dss5": None, "died": None, "followup": None}
-    curve = stats.kaplan_meier(df["overall_survival_months"], df["dss_event"])
+    curve = stats.survival_share(df["overall_survival_months"], df["dss_event"])
     known = df["dss_event"].dropna()
     return {
         "n": len(df),
         "age": float(df["age_at_diagnosis"].median()),
-        "dss5": stats.survival_at(curve, 60),
+        "dss5": stats.survival_at(curve, stats.HORIZON),
         "died": float(known.mean()) if len(known) else None,
         "died_n": int(known.sum()),
         "followup": float(df["overall_survival_months"].median()),
@@ -94,7 +93,7 @@ def subtype_bars(df: pd.DataFrame, selected: pd.Index, height: int = 300) -> go.
 
 
 # --------------------------------------------------------------------------- #
-# Kaplan-Meier
+# Survival over the first 5 years
 # --------------------------------------------------------------------------- #
 def survival_groups(df: pd.DataFrame, split: str, selected: pd.Index,
                     clusters: pd.Series | None = None) -> tuple[pd.Series, list, dict]:
@@ -115,9 +114,10 @@ def survival_groups(df: pd.DataFrame, split: str, selected: pd.Index,
     return groups, order, theme.color_map(split, order)
 
 
-def km_figure(df: pd.DataFrame, groups: pd.Series, order: list, colors: dict,
-              event: str = "dss_event", height: int = 330) -> tuple[go.Figure, str]:
-    """Kaplan-Meier curves per group + a one-line log-rank summary."""
+def survival_figure(df: pd.DataFrame, groups: pd.Series, order: list, colors: dict,
+                    event: str = "dss_event", height: int = 330) -> tuple[go.Figure, str]:
+    """Share of patients alive at each month of the first 5 years, one line per group,
+    + a one-line summary of the 5-year values."""
     if len(df) == 0:
         return empty_figure("No patients match the filters", height), ""
     t, e = df["overall_survival_months"], df[event]
@@ -126,31 +126,26 @@ def km_figure(df: pd.DataFrame, groups: pd.Series, order: list, colors: dict,
     dropped = [g for g in order if 0 < sizes.get(g, 0) < MIN_GROUP]
 
     fig = go.Figure()
+    five_year = []
     for g in shown:
         m = (groups == g).to_numpy()
-        curve = stats.kaplan_meier(t[m], e[m])
-        curve = curve[curve["at_risk"] >= MIN_AT_RISK]
+        curve = stats.survival_share(t[m], e[m])
         fig.add_trace(go.Scatter(
-            x=curve["time"], y=curve["survival"], mode="lines", line_shape="hv",
+            x=curve["month"], y=curve["survival"], mode="lines",
             name=f"{g} (n={int(m.sum()):,})", line=dict(color=colors.get(g, theme.OTHER_COLOR), width=2),
-            customdata=curve[["at_risk"]],
-            hovertemplate=(f"<b>{g}</b><br>%{{x:.0f}} months: %{{y:.1%}} survival"
-                           "<br>%{customdata[0]:,} patients still at risk<extra></extra>"),
+            customdata=curve[["alive", "known"]],
+            hovertemplate=(f"<b>{g}</b><br>month %{{x}}: %{{y:.1%}} alive"
+                           "<br>(%{customdata[0]:,} alive of %{customdata[1]:,} patients with a known status)"
+                           "<extra></extra>"),
         ))
+        five_year.append(f"{g} {stats.survival_at(curve, stats.HORIZON):.0%}")
     fig.update_layout(
         height=height, margin=dict(l=8, r=8, t=8, b=40), hovermode="closest",
-        xaxis_title="Months since diagnosis",
-        yaxis=dict(title="Survival probability", range=[0, 1.02], tickformat=".0%"),
+        xaxis=dict(title="Months since diagnosis", range=[0, stats.HORIZON], dtick=12),
+        yaxis=dict(title="Patients alive (%)", range=[0, 1.02], tickformat=".0%"),
         legend=dict(orientation="v", x=1.01, y=1, xanchor="left"),
     )
-
-    if len(shown) >= 2:
-        keep = groups.isin(shown).to_numpy()
-        chi2, dof, p = stats.logrank_test(t[keep], e[keep], groups[keep])
-        p_txt = "< 10⁻³⁰⁰" if p < 1e-300 else (f"= {p:.1e}" if p < 0.001 else f"= {p:.3f}")
-        summary = f"Log-rank test: χ² = {chi2:.1f}, df = {dof}, p {p_txt}"
-    else:
-        summary = "Log-rank test needs at least two groups of 10 patients or more."
+    summary = "Alive at 5 years: " + " · ".join(five_year) if five_year else "No group of 10 patients or more."
     if dropped:
         summary += f" · not shown (< {MIN_GROUP} patients): {', '.join(dropped)}"
     return fig, summary

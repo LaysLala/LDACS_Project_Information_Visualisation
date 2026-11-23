@@ -95,7 +95,7 @@ Then open <http://127.0.0.1:8050> in a web browser. A short guide opens on the f
 │   ├── figures_clusters.py figure builders (Clusters & projections page)
 │   ├── compute.py          cached projections and clusterings (heavy computations)
 │   ├── variables.py        clinical / gene / mutation variables shared by the charts
-│   ├── stats.py            Kaplan-Meier, log-rank test, mutual information
+│   ├── stats.py            survival share over time, mutual information
 │   ├── algorithms.py       dimensionality reduction, clustering, quality measures
 │   └── theme.py            shared colours, fonts and Plotly template
 ├── notebooks/

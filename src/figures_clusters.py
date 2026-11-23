@@ -221,6 +221,6 @@ def composition_figure(clusters: pd.Series, subtypes: pd.Series, height: int = 2
         hovertemplate="%{y}: %{z:.0f}% %{customdata[1]}<br><i>Click to select these patients</i><extra></extra>"))
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=8, b=8), clickmode="event",
                       xaxis=dict(tickvals=list(range(len(xcols))), ticktext=xcols, showgrid=False,
-                                 title="PAM50 subtype", zeroline=False),
+                                 title="Molecular subtype", zeroline=False),
                       yaxis=dict(autorange="reversed", showgrid=False, type="category"))
     return fig

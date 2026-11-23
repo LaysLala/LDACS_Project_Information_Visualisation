@@ -1,7 +1,7 @@
 """
 Page 1 - Overview: who are the (filtered) patients and how do they survive?
 
-Cards: KPI tiles, patients per subtype (click = select), Kaplan-Meier survival
+Cards: KPI tiles, patients per subtype (click = select), survival over the first 5 years
 split by any variable or by selection vs rest, distribution of a numeric
 variable (box-select a range = select), categorical breakdown (click = select).
 """
@@ -44,16 +44,17 @@ layout = html.Div([
     html.Div(id="ov-kpis", className="kpi-row", **{"aria-live": "polite"}),
 
     html.Div([
-        card("Patients per PAM50 subtype", [graph("ov-subtypes", H_SUBTYPES)],
+        card("Patients per molecular subtype", [graph("ov-subtypes", H_SUBTYPES)],
              help_text="Number of filtered patients in each molecular subtype. With a selection, pale bars "
                        "show all filtered patients and solid bars the selected ones. Click a bar to select "
                        "the patients of that subtype. Colours are the same on every page.",
              class_name="span-5"),
-        card("Survival (Kaplan–Meier)", [graph("ov-km", H_KM), html.P(id="ov-km-test", className="card-note")],
-             help_text="Share of patients still alive over time, accounting for patients still alive at the "
-                       "end of their follow-up (censoring). Disease-specific: only deaths from breast cancer "
-                       "count; overall: deaths of any cause. Curves stop when fewer than 10 patients remain at "
-                       "risk. The log-rank test checks whether the curves differ.",
+        card("Survival over the first 5 years", [graph("ov-km", H_KM), html.P(id="ov-km-test", className="card-note")],
+             help_text="For each month after diagnosis, the share of patients still alive among the patients "
+                       "whose status at that month is known (patients whose follow-up ended earlier, still "
+                       "alive, are left out). Shown over the first 5 years, when almost every patient's status "
+                       "is known. Disease-specific: only deaths from breast cancer count; overall: deaths of "
+                       "any cause. A new selection switches the chart to 'selection vs rest'.",
              controls=[
                  labelled("Split by", dcc.Dropdown(id="ov-km-split", options=SPLIT_OPTIONS, value="pam50_subtype",
                                                    clearable=False, className="dropdown")),
@@ -79,7 +80,7 @@ layout = html.Div([
               html.P(id="ov-dist-summary", className="card-note")],
              help_text="Histogram of the chosen variable for the filtered patients (dashed = median, dotted = "
                        "mean). Drag horizontally on the histogram to select the patients in that range. 'Box' "
-                       "compares the PAM50 subtypes (or the selection with the rest when patients are "
+                       "compares the molecular subtypes (or the selection with the rest when patients are "
                        "selected). Log scale helps for skewed variables "
                        "such as lymph nodes; the bin count changes what you see.",
              controls=[
@@ -118,7 +119,7 @@ def kpi_tiles(filtered, selected):
     tiles = [
         ("Patients (after filters)", _fmt(k["n"], "n"), f"of {total:,} in the cohort", "n", "n"),
         ("Median age at diagnosis", _fmt(k["age"], "age"), "years", "age", "age"),
-        ("5-year survival (disease)", _fmt(k["dss5"], "pct"), "disease-specific, Kaplan–Meier", "dss5", "pct"),
+        ("Alive at 5 years", _fmt(k["dss5"], "pct"), "deaths from breast cancer only", "dss5", "pct"),
         ("Died of breast cancer", _fmt(k["died"], "pct"), f"{k.get('died_n', 0):,} patients", "died", "pct"),
         ("Median follow-up time", _fmt(k["followup"], "months"), "months since diagnosis", "followup", "months"),
     ]
@@ -183,7 +184,7 @@ def cluster_series(res) -> pd.Series | None:
 def survival_chart(filtered, selected, split, event, clusters):
     df, sel = _frames(filtered, selected)
     groups, order, colors = figures.survival_groups(df, split, sel, cluster_series(clusters))
-    return figures.km_figure(df, groups, order, colors, event=event, height=H_KM)
+    return figures.survival_figure(df, groups, order, colors, event=event, height=H_KM)
 
 
 # --------------------------------------------------------------------------- #
