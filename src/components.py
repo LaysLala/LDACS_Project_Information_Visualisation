@@ -177,20 +177,27 @@ def selection_bar() -> html.Div:
 # Help panel
 # --------------------------------------------------------------------------- #
 HELP_SECTIONS = [
-    ("Filter", "The sidebar filters apply to every chart on every page. The header shows how many "
-               "patients remain. Numbers next to the subtypes tell how many patients each would add."),
-    ("Select", "Click a bar or a segment, or drag a box on a histogram, to select patients. Selected "
-               "patients keep their colour in every chart and the others turn grey or are shown as "
-               "'rest'. The bar under the header lets you clear the selection, keep only these patients "
-               "or exclude them (both become filters)."),
-    ("Details on demand", "Hover any mark for exact values. The (i) button on each card explains the "
-                          "chart and how to read it."),
-    ("Pages", "Overview: who are the patients and how do they survive? Relationships & genomics: how "
-              "are the variables, genes and mutations linked? Clusters & projections: is there "
-              "structure in gene expression?"),
-    ("Survival curves", "Kaplan-Meier curves account for patients still alive at the end of follow-up "
-                        "(censoring). Disease-specific survival counts only deaths from breast cancer. "
-                        "Curves stop when fewer than 10 patients remain at risk."),
+    ("1 · Filter", "The sidebar on the left removes patients from every chart on every page (subtype, "
+                   "receptors, age, stage, grade, vital status, treatment). The header shows how many "
+                   "patients remain; the number next to each subtype is how many patients it would add."),
+    ("2 · Select", "Click a bar, a segment, a table cell or a box, drag a range on a histogram, or draw a "
+                   "lasso on a scatter plot. The selected patients keep their colour in every chart, the "
+                   "others turn grey or are shown as 'rest'. The blue bar under the header lets you clear "
+                   "the selection, or keep only / exclude these patients (they then become a filter)."),
+    ("3 · Read the details", "Hover any mark for exact values. The (i) button on each card explains how "
+                             "to read the chart."),
+    ("Overview", "Who are the patients and how do they survive? Key numbers, subtypes, survival curves "
+                 "(Kaplan-Meier), distribution of any measurement, composition of any category."),
+    ("Relationships & genomics", "How are the variables linked? Click a cell of the matrix to open that "
+                                 "pair below it; the pair view accepts clinical variables, genes and "
+                                 "mutations. Which genes are mutated or expressed differently in a group?"),
+    ("Clusters & projections", "Is there structure in the gene expression? Choose a projection and a "
+                               "clustering algorithm, then press Run (t-SNE and UMAP take 10-30 s). The "
+                               "clusters can then be used on the other pages ('by cluster')."),
+    ("Good to know", "Survival curves account for patients still alive at the end of follow-up "
+                     "(censoring) and stop when fewer than 10 patients remain at risk. 'Remove cohort "
+                     "effect' (sidebar) corrects a technical difference between the 5 sampling batches; "
+                     "it is off by default."),
 ]
 
 

@@ -345,7 +345,7 @@ def expression_heatmap(ids, selected: pd.Index, mode: str, n_genes: int = 20, co
         z=m.to_numpy(), x=order, y=ypos, colorscale=theme.DIVERGING, zmid=0, zmin=-lim, zmax=lim,
         # values printed in the cells only while rows are tall enough to read them
         text=m.round(1).astype(str).to_numpy(), texttemplate="%{text}" if len(leaves) <= 15 else "",
-        textfont=dict(size=10),
+        textfont=dict(size=11),
         customdata=custom, xgap=2, ygap=1,
         colorbar=dict(title=dict(text="mean z", side="right"), thickness=10, len=0.9),
         hovertemplate=("<b>%{customdata[0]}</b> in %{x}: mean z = %{z:.2f}"
@@ -354,7 +354,7 @@ def expression_heatmap(ids, selected: pd.Index, mode: str, n_genes: int = 20, co
     fig.update_xaxes(visible=False, autorange="reversed", row=1, col=1)
     fig.update_xaxes(showgrid=False, side="top", row=1, col=2)
     fig.update_yaxes(tickvals=ypos, ticktext=[g.upper() for g in leaves], showgrid=False, row=1, col=1,
-                     range=[0, 10 * len(leaves)], tickfont=dict(size=11 if len(leaves) <= 15 else 9))
+                     range=[0, 10 * len(leaves)], tickfont=dict(size=11))
     fig.update_yaxes(showgrid=False, row=1, col=2)
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=24, b=8), clickmode="event")
     return fig, leaves

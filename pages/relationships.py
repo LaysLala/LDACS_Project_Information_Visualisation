@@ -25,9 +25,7 @@ dash.register_page(__name__, path="/relationships", name="Relationships & genomi
 
 VAR_OPTIONS = V.options()
 COLOUR_OPTIONS = ([{"label": "No colour", "value": "none"}]
-                  + [{"label": f"Clinical · {V.describe('clin:' + c).label}", "value": f"clin:{c}"}
-                     for c in categorical_columns()]
-                  + [{"label": f"Mutation · {g.upper()}", "value": f"mut:{g}"} for g in ("tp53", "pik3ca", "gata3", "cdh1")])
+                  + [{"label": V.describe("clin:" + c).label, "value": f"clin:{c}"} for c in categorical_columns()])
 DEFAULT_X, DEFAULT_Y = "clin:integrative_cluster", "clin:pam50_subtype"
 
 
@@ -98,7 +96,7 @@ layout = html.Div([
                                 options=[{"label": "PAM50 subtypes", "value": "subtype"},
                                          {"label": "Clusters", "value": "cluster"},
                                          {"label": "Selection vs rest", "value": "selection"}]),
-                 labelled("Genes", dcc.Dropdown(id="rel-heat-n", options=[10, 15, 25], value=15, clearable=False,
+                 labelled("Genes", dcc.Dropdown(id="rel-heat-n", options=[10, 15, 20], value=15, clearable=False,
                                                 searchable=False, className="mini-dropdown")),
              ],
              class_name="span-6"),

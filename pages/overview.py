@@ -64,8 +64,6 @@ layout = html.Div([
     html.Div([
         card("Distribution of a clinical variable",
              [html.Div([
-                 labelled("Group by", dcc.Dropdown(id="ov-dist-group", options=SPLIT_OPTIONS, value="pam50_subtype",
-                                                   clearable=False, className="dropdown")),
                  dcc.Checklist(id="ov-dist-stats", inline=True, className="checks", value=["mean", "median"],
                                options=[{"label": " Mean", "value": "mean"}, {"label": " Median", "value": "median"}]),
                  dcc.Checklist(id="ov-dist-log", inline=True, className="checks", value=[],
@@ -78,7 +76,8 @@ layout = html.Div([
               html.P(id="ov-dist-summary", className="card-note")],
              help_text="Histogram of the chosen variable for the filtered patients (dashed = median, dotted = "
                        "mean). Drag horizontally on the histogram to select the patients in that range. 'Box' "
-                       "compares groups (or the selection with the rest). Log scale helps for skewed variables "
+                       "compares the PAM50 subtypes (or the selection with the rest when patients are "
+                       "selected). Log scale helps for skewed variables "
                        "such as lymph nodes; the bin count changes what you see.",
              controls=[
                  labelled("Variable", dcc.Dropdown(id="ov-dist-var", options=DIST_OPTIONS, value="age_at_diagnosis",
@@ -183,18 +182,18 @@ def survival_chart(filtered, selected, split, event, clusters):
 # --------------------------------------------------------------------------- #
 # Distribution
 # --------------------------------------------------------------------------- #
-@callback(Output("ov-dist-group", "disabled"), Output("ov-dist-bins", "disabled"), Input("ov-dist-kind", "value"))
+@callback(Output("ov-dist-bins", "disabled"), Input("ov-dist-kind", "value"))
 def dist_controls(kind):
-    return kind == "hist", kind != "hist"
+    return kind != "hist"
 
 
 @callback(Output("ov-dist", "figure"), Output("ov-dist-summary", "children"),
           Input("filtered-ids", "data"), Input("selected", "data"), Input("ov-dist-var", "value"),
-          Input("ov-dist-kind", "value"), Input("ov-dist-group", "value"), Input("ov-dist-stats", "value"),
+          Input("ov-dist-kind", "value"), Input("ov-dist-stats", "value"),
           Input("ov-dist-log", "value"), Input("ov-dist-bins", "value"))
-def distribution_chart(filtered, selected, column, kind, group_by, stat_flags, log_flag, nbins):
+def distribution_chart(filtered, selected, column, kind, stat_flags, log_flag, nbins):
     df, sel = _frames(filtered, selected)
-    fig = figures.distribution_figure(df, sel, column, kind=kind, group_by=group_by,
+    fig = figures.distribution_figure(df, sel, column, kind=kind, group_by="pam50_subtype",
                                       show_mean="mean" in stat_flags, show_median="median" in stat_flags,
                                       log="log" in log_flag, nbins=nbins)
     v = df[column].dropna()

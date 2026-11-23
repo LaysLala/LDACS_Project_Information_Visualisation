@@ -39,6 +39,9 @@ put it.
 
 Requires **Python 3.10 or newer**.
 
+> **Windows:** if `python` opens the Microsoft Store, Python is not on the PATH; use the
+> launcher `py` instead of `python` in the commands below (e.g. `py -m venv .venv`).
+
 ```bash
 # 1. create and activate a virtual environment (from the project root)
 python -m venv .venv
@@ -66,7 +69,8 @@ python -m src.data
 python app.py
 ```
 
-Then open <http://127.0.0.1:8050> in a web browser.
+Then open <http://127.0.0.1:8050> in a web browser. A short guide opens on the first visit
+(it can be reopened with the **Help** button).
 
 ---
 

@@ -58,6 +58,7 @@ app.layout = html.Div([
     dcc.Store(id="selected", data=None),
     dcc.Store(id="manual-filter", data=EMPTY_MANUAL),
     dcc.Store(id="cluster-result", data=None),     # last projection + clustering (Clusters page), used app-wide
+    dcc.Store(id="help-seen", storage_type="local"),  # the guide opens by itself on the first visit only
     header(),
     help_panel(),
     html.Div([

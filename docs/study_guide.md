@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: end of Phase 4 (2026-11-23). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: end of Phase 5 (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -301,6 +301,50 @@ selection on every page. The composition table and the survival chart then descr
 
 *How does the interface stay responsive?* Heavy work only on Run, cached results, pre-warmed UMAP, WebGL scatter,
 ids-only stores, and the other charts never wait for a heavy computation.
+
+### Phase 5: polish against the evaluation grid, "simplicity first"
+
+**Simplicity review against the course.** Everything the app does was re-checked against the practical sessions, the
+clustering and DR lectures and Munzner's slides. Outside the course remain only the four justified items (Kaplan–Meier,
+Spearman, cohort correction, Ward as default). Three controls were **removed** because they added a concept without
+adding insight:
+
+| Removed | Replaced by |
+|---|---|
+| "Cluster in: 489 genes / 2-D view" (Clusters page) | a fixed rule, stated under the algorithm buttons and in the help: K-means and hierarchical on the 489 genes; DBSCAN on the 2-D view (as in TP3; curse of dimensionality) |
+| "Group by" for the Overview box plots | box plots always compare the PAM50 subtypes, or selection vs rest when patients are selected |
+| mutation options in the pair view's "Colour" list | colour by a categorical clinical variable only |
+
+**Other fixes:** the Help panel was rewritten (filter → select → details, one paragraph per page, "good to know") and
+now **opens by itself on the first visit only** (remembered in the browser); every chart text ≥ 11 px (heatmap capped
+at 20 genes); "1 cluster" grammar; README note for Windows (`py` instead of `python`).
+
+### Evaluation-grid checklist (use it for the report and the oral exam)
+
+| Grid item | How we address it | Where |
+|---|---|---|
+| 1.1 Appropriate charts | bars for counts, histogram/box for distributions, scatter for 2 numerics, heatmaps for matrices/tables, lines for survival; the pair view picks the chart from the data types | all pages |
+| 1.2 No chart junk | no 3-D, no shadows, light grid, no decorative colour; one accent colour | `theme.py` |
+| 1.3 Readability | axis titles with units, legends, hover on every mark, notes under charts (n, statistics) | all charts |
+| 1.4 Colours | colour-blind-validated palettes; fixed subtype colours; diverging only for signed values (z, ρ), sequential for magnitudes; z clipped at ±3 | `theme.py` |
+| 1.5 Data-ink | lower-triangle matrices (no redundant half, no diagonal), values in cells only when readable | page 2 |
+| 2.1 Linked views | one shared selection and one shared filter; every chart listens; 9 charts can create a selection; selection ↔ filter (Keep only / Exclude) | `state.py`, `callbacks.py` |
+| 2.2 Details on demand | hover templates on every mark; (i) help per card; status lines | all pages |
+| 2.3 Speed | ids-only stores; all light charts ≤ 0.4 s; heavy algorithms only on Run, cached, UMAP pre-warmed | `compute.py` |
+| 3.1 Axes & scales | y from 0 for counts, % and choose-k; survival 0–100%; log scale only on request, ticks in real units; PCA axes show % variance; t-SNE/UMAP axes hidden (meaningless) | figures |
+| 3.2 Density vs simplicity | 3 pages × 4–5 cards; controls trimmed (Phase 5); heatmap ≤ 20 genes | layout |
+| 3.3 Consistency | one Plotly template, one font, same colours/legends/selection style everywhere | `theme.py`, `style.css` |
+| 4.1 Navigation | 3 tabs, active tab highlighted; sidebar always visible; reset button | header, sidebar |
+| 4.2 Guidance | guide on first visit + Help button; (i) per card; notes under charts say what to do | `components.py` |
+| 4.3 Feedback | loading indicator (after 300 ms), Run status line (time, warnings), selection bar, patient counter, "press Run" when outdated | all pages |
+| 4.4 Layout | each page fits a 1440 × 1000 screen: a selection's effect is visible without scrolling | `style.css` |
+| 4.5 Accessibility | colour-blind palettes, colour never the only cue (legends/labels), contrast ≥ 4.5:1, text ≥ 11 px in charts, real buttons/labels, keyboard focus outlines | `theme.py`, `style.css` |
+| 5.1 Creativity | adaptive pair view; cluster heatmap linked to the pair view; histograms normalised to compare a selection's shape; clusters reused on every page ("by cluster"); live dendrogram selection with inversion warning | pages 2–3 |
+| 6.x Report | to do in Phase 6 (this guide is the source) | |
+
+**Remaining gaps (say them if asked):** selecting inside a chart needs a mouse (Plotly charts are not keyboard-operable);
+t-SNE/UMAP still take 10–30 s on 1,904 patients (mitigated by Run, spinner, cache, warm-up); the dashboard is designed
+for a laptop/desktop screen (it stacks on narrow screens but is not optimised for phones).
 
 ---
 

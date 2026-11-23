@@ -126,7 +126,7 @@ def choose_k_figure(table: pd.DataFrame, k: int | None, height: int = 300) -> go
             fig.add_trace(go.Scatter(x=[k], y=table.loc[table["k"] == k, col], mode="markers", showlegend=False,
                                      marker=dict(size=11, color="rgba(0,0,0,0)", line=dict(color=theme.TEXT, width=2)),
                                      hoverinfo="skip"), i, 1)
-        fig.update_yaxes(rangemode="tozero", row=i, col=1, tickfont=dict(size=10))
+        fig.update_yaxes(rangemode="tozero", row=i, col=1, tickfont=dict(size=11))
     fig.update_xaxes(title_text="Number of clusters k", dtick=1, row=3, col=1)
     fig.update_annotations(font_size=12)
     fig.update_layout(height=height, margin=dict(l=8, r=8, t=24, b=8))

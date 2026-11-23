@@ -104,10 +104,17 @@ def reset(_all, _filters):
     return *values, EMPTY_MANUAL, selection
 
 
-@callback(Output("help-panel", "style"), Input("help-open", "n_clicks"), Input("help-close", "n_clicks"),
-          prevent_initial_call=True)
-def toggle_help(_open, _close):
-    return {} if ctx.triggered_id == "help-open" else {"display": "none"}
+@callback(Output("help-panel", "style"), Output("help-seen", "data"),
+          Input("help-open", "n_clicks"), Input("help-close", "n_clicks"), Input("url", "pathname"),
+          State("help-seen", "data"))
+def toggle_help(_open, _close, _path, seen):
+    """Open the guide on the very first visit (remembered in the browser), then only on demand.
+    Triggered by the page load (url), not by the store itself, so saving 'seen' does not re-trigger it."""
+    if ctx.triggered_id == "help-open":
+        return {}, True
+    if ctx.triggered_id == "help-close":
+        return {"display": "none"}, True
+    return ({"display": "none"}, no_update) if seen else ({}, True)
 
 
 @callback([Output(f"nav-{i}", "className") for i in range(len(PAGES))], Input("url", "pathname"))

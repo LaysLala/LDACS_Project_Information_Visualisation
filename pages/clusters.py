@@ -81,9 +81,7 @@ settings = card("Settings", [
                      "control slider"),
             labelled("min_samples", _slider("cl-minsamples", 3, 30, 1, 10, {3: "3", 10: "10", 20: "20", 30: "30"}),
                      "control slider")]),
-        labelled("Cluster in", dcc.RadioItems(id="cl-space", className="segmented", inline=True, value="genes",
-                                              options=[{"label": "489 genes", "value": "genes"},
-                                                       {"label": "2-D view", "value": "2d"}])),
+        html.P(id="cl-space-note", className="muted small"),
     ], className="param-group"),
     html.Button("Run", id="cl-run", className="btn btn-primary btn-run"),
     dcc.Loading(html.P(id="cl-status", className="card-note", **{"aria-live": "polite"}),
@@ -92,8 +90,10 @@ settings = card("Settings", [
              "press Run. PCA and K-means take about a second; t-SNE, UMAP and hierarchical clustering take "
              "longer the first time (results are kept, so going back to a previous setting is instant). The "
              "computation uses the patients kept by the filters and the cohort-correction setting at the time "
-             "of the Run. DBSCAN's eps is read on the k-distance curve (Diagnostics): a percentile of the "
-             "distances to the k-th neighbour, the usual 'knee' heuristic.",
+             "of the Run. K-means and hierarchical clustering group the patients on all 489 genes; DBSCAN works "
+             "on the 2-D view, because in 489 dimensions all patients are about equally far apart and no "
+             "density structure exists. DBSCAN's eps is read on the k-distance curve (Diagnostics): a "
+             "percentile of the distances to the k-th neighbour, the usual 'knee' heuristic.",
    class_name="span-3 settings-card")
 
 projection_card = card("Projection", [
@@ -154,19 +154,21 @@ layout = html.Div([
 SHOW, HIDE = {}, {"display": "none"}
 
 
+def clustering_space(algo: str) -> str:
+    """K-means / hierarchical use all 489 genes; DBSCAN the 2-D view (in 489-D every patient is about
+    equally far from every other, so there is no density structure: curse of dimensionality)."""
+    return "2d" if algo == "dbscan" else "genes"
+
+
 @callback(Output("cl-tsne-params", "style"), Output("cl-umap-params", "style"), Output("cl-k-params", "style"),
-          Output("cl-link-params", "style"), Output("cl-dbscan-params", "style"),
+          Output("cl-link-params", "style"), Output("cl-dbscan-params", "style"), Output("cl-space-note", "children"),
           Input("cl-method", "value"), Input("cl-algo", "value"))
 def parameter_blocks(method, algo):
+    note = ("DBSCAN groups the patients in the 2-D view." if algo == "dbscan"
+            else "Groups the patients on all 489 genes.")
     return (SHOW if method == "tsne" else HIDE, SHOW if method == "umap" else HIDE,
             SHOW if algo != "dbscan" else HIDE, SHOW if algo == "hierarchical" else HIDE,
-            SHOW if algo == "dbscan" else HIDE)
-
-
-@callback(Output("cl-space", "value"), Input("cl-algo", "value"), prevent_initial_call=True)
-def default_space(algo):
-    # density clustering is only meaningful in a low-dimensional space (curse of dimensionality)
-    return "2d" if algo == "dbscan" else "genes"
+            SHOW if algo == "dbscan" else HIDE, note)
 
 
 @callback(Output("cluster-result", "data"), Output("cl-status", "children"),
@@ -174,10 +176,11 @@ def default_space(algo):
           State("cl-method", "value"), State("cl-perplexity", "value"), State("cl-neighbors", "value"),
           State("cl-mindist", "value"), State("cl-algo", "value"), State("cl-k", "value"),
           State("cl-linkage", "value"), State("cl-eps", "value"), State("cl-minsamples", "value"),
-          State("cl-space", "value"), State("filtered-ids", "data"), State("cohort-correction", "value"),
+          State("filtered-ids", "data"), State("cohort-correction", "value"),
           State("cluster-result", "data"))
-def run(n_clicks, method, perplexity, neighbors, mindist, algo, k, linkage, eps_pct, min_samples, space_name,
+def run(n_clicks, method, perplexity, neighbors, mindist, algo, k, linkage, eps_pct, min_samples,
         filtered, cohort, previous):
+    space_name = clustering_space(algo)
     if n_clicks is None and previous:            # coming back to the page: keep the last result
         return no_update, _status(previous, from_cache=True)
     ids = C.ids_key(filtered or [])
@@ -209,7 +212,7 @@ def _status(res, from_cache=False):
     if res["algo"] == "dbscan":
         algo += f" (eps = {res['info']['eps']:.2f}, min_samples = {res['min_samples']})"
     where = "489 genes" if res["space"] == "genes" else "the 2-D view"
-    parts = [f"{METHOD_NAME[res['method']]} + {algo} on {where}: {n_clusters} clusters",
+    parts = [f"{METHOD_NAME[res['method']]} + {algo} on {where}: {n_clusters} cluster{'s' if n_clusters != 1 else ''}",
              f"{noise:,} noise points" if noise else None,
              f"{len(res['ids']):,} patients", "cohort effect removed" if res["corrected"] else None,
              "last result" if from_cache else f"{res['seconds']:.1f} s"]
