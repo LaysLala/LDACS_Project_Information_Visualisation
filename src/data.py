@@ -35,14 +35,10 @@ Cleaning decisions
    the UI: cancer_type (1903 of 1904 are 'Breast Cancer'), oncotree_code (same
    information as cancer_type_detailed), cohort (sampling batch, no clinical
    meaning).
-7. Cohort (batch) effect in mRNA. The first principal component of the raw
-   z-scores mostly separates the 5 sampling cohorts, i.e. a technical effect,
-   not biology. The cohorts have almost the same subtype mix (normalized
-   mutual information cohort/PAM50 = 0.015), so centring each gene within its cohort removes the
-   batch effect while keeping the biological signal. `remove_cohort_effect()`
-   does this (see notebooks/Exploratory.ipynb, sections 7.2-7.3). In the
-   dashboard the correction is OFF by default (raw data shown as published)
-   and the user can switch it on with a toggle.
+7. Gene expression is used as published. The exploratory notebook found a
+   technical difference between the 5 sampling cohorts (notebooks/
+   Exploratory.ipynb, section 7); correcting it was judged too hard for a
+   dashboard user to interpret, so the dashboard keeps the published values.
 
 Run `python -m src.data` from the project root to print a summary.
 """
@@ -226,23 +222,6 @@ def load_data(path: Path | str = DATA_PATH) -> Metabric:
         mutations=mutations,
         mutation_codes=mutation_codes,
     )
-
-
-def remove_cohort_effect(mrna: pd.DataFrame, cohort: pd.Series) -> pd.DataFrame:
-    """Centre every gene within each cohort, then re-standardise (mean 0, sd 1).
-
-    Removes the technical (batch) differences between sampling cohorts; see
-    cleaning decision 7. `cohort` must share `mrna`'s index.
-    """
-    centred = mrna - mrna.groupby(cohort).transform("mean")
-    return (centred - centred.mean()) / centred.std()
-
-
-@lru_cache(maxsize=2)
-def mrna_matrix(corrected: bool = False) -> pd.DataFrame:
-    """mRNA z-scores as published, or with the cohort effect removed (computed once, cached)."""
-    d = load_data()
-    return remove_cohort_effect(d.mrna, d.clinical["cohort"]) if corrected else d.mrna
 
 
 def label(column: str) -> str:

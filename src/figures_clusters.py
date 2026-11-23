@@ -43,7 +43,7 @@ def cluster_colors(order: list[str]) -> dict:
 # --------------------------------------------------------------------------- #
 # Projection
 # --------------------------------------------------------------------------- #
-def projection_figure(res: dict, visible: pd.Index, selected: pd.Index, colour: str, corrected: bool,
+def projection_figure(res: dict, visible: pd.Index, selected: pd.Index, colour: str,
                       height: int = 360) -> go.Figure:
     pts = pd.DataFrame({"x": res["x"], "y": res["y"], "cluster": res["labels"]}, index=res["ids"])
     pts = pts.loc[pts.index.isin(visible)]
@@ -68,7 +68,7 @@ def projection_figure(res: dict, visible: pd.Index, selected: pd.Index, colour: 
                 fig.add_trace(_points(part, c, cmap[c], f"<b>{c}</b>"))
     else:
         var = V.describe(colour)
-        vals = V.values(colour, shown.index, corrected)
+        vals = V.values(colour, shown.index)
         if var.kind == "cat":
             order = V.categories(colour, vals)
             name = colour.split(":", 1)[1]

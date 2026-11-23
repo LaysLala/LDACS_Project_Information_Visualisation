@@ -24,6 +24,9 @@ SPLIT_OPTIONS = [{"label": label(c), "value": c} for c in categorical_columns()]
 BREAKDOWN_OPTIONS = [{"label": "Receptors (ER, PR, HER2)", "value": "receptors"}] + [
     {"label": label(c), "value": c} for c in categorical_columns()
     if c not in ("pam50_subtype", "er_status", "pr_status", "her2_status")]
+# one height per chart, used by both the container and the figure (they must match)
+H_SUBTYPES, H_KM, H_DIST, H_BREAK = 270, 250, 235, 290
+
 DIST_OPTIONS = [{"label": label(c), "value": c} for c in NUMERIC_CLINICAL]
 
 
@@ -41,12 +44,12 @@ layout = html.Div([
     html.Div(id="ov-kpis", className="kpi-row", **{"aria-live": "polite"}),
 
     html.Div([
-        card("Patients per PAM50 subtype", [graph("ov-subtypes", 270)],
+        card("Patients per PAM50 subtype", [graph("ov-subtypes", H_SUBTYPES)],
              help_text="Number of filtered patients in each molecular subtype. With a selection, pale bars "
                        "show all filtered patients and solid bars the selected ones. Click a bar to select "
                        "the patients of that subtype. Colours are the same on every page.",
              class_name="span-5"),
-        card("Survival (Kaplan–Meier)", [graph("ov-km", 250), html.P(id="ov-km-test", className="card-note")],
+        card("Survival (Kaplan–Meier)", [graph("ov-km", H_KM), html.P(id="ov-km-test", className="card-note")],
              help_text="Share of patients still alive over time, accounting for patients still alive at the "
                        "end of their follow-up (censoring). Disease-specific: only deaths from breast cancer "
                        "count; overall: deaths of any cause. Curves stop when fewer than 10 patients remain at "
@@ -72,7 +75,7 @@ layout = html.Div([
                                              marks={5: "5", 20: "20", 40: "40", 60: "60"},
                                              tooltip={"placement": "bottom"}), class_name="control slider"),
               ], className="toolbar"),
-              graph("ov-dist", 235),
+              graph("ov-dist", H_DIST),
               html.P(id="ov-dist-summary", className="card-note")],
              help_text="Histogram of the chosen variable for the filtered patients (dashed = median, dotted = "
                        "mean). Drag horizontally on the histogram to select the patients in that range. 'Box' "
@@ -86,7 +89,7 @@ layout = html.Div([
                                 options=[{"label": "Histogram", "value": "hist"}, {"label": "Box", "value": "box"}]),
              ],
              class_name="span-7"),
-        card("Categorical breakdown", [graph("ov-breakdown", 290)],
+        card("Categorical breakdown", [graph("ov-breakdown", H_BREAK)],
              help_text="Composition of the filtered patients for one categorical variable, and of the "
                        "selection when there is one. Click a segment to select those patients.",
              controls=[labelled("Variable", dcc.Dropdown(id="ov-break-var", options=BREAKDOWN_OPTIONS,
@@ -135,7 +138,7 @@ def kpi_tiles(filtered, selected):
 @callback(Output("ov-subtypes", "figure"), Input("filtered-ids", "data"), Input("selected", "data"))
 def subtype_chart(filtered, selected):
     df, sel = _frames(filtered, selected)
-    return figures.subtype_bars(df, sel)
+    return figures.subtype_bars(df, sel, H_SUBTYPES)
 
 
 @callback(Output("selected", "data", allow_duplicate=True), Input("ov-subtypes", "clickData"),
@@ -146,7 +149,7 @@ def select_subtype(click, filtered):
     subtype = click["points"][0]["y"]
     df = load_data().clinical.loc[filtered or []]
     ids = df.index[df["pam50_subtype"].astype(str) == subtype]
-    return make_selection(ids, f"subtype {subtype} (Overview)")
+    return make_selection(ids, f"subtype {subtype} (Overview)", "pam50_subtype", subtype)
 
 
 # --------------------------------------------------------------------------- #
@@ -156,10 +159,14 @@ def select_subtype(click, filtered):
           Input("selected", "data"), Input("filtered-ids", "data"), Input("cluster-result", "data"),
           State("ov-km-split", "value"))
 def split_options(selected, filtered, clusters, current):
+    """A new selection switches the survival chart to 'selection vs rest' (the user can still pick
+    another split); clearing the selection switches back to the subtypes."""
     has_sel = bool(visible_selection(selected, filtered or []))
     options = (([{"label": "Selection vs rest", "value": "selection"}] if has_sel else [])
                + ([{"label": "Cluster (Clusters page)", "value": "cluster"}] if clusters else [])
                + SPLIT_OPTIONS)
+    if has_sel and dash.ctx.triggered_id == "selected" and current != "selection":
+        return options, "selection"
     if (current == "selection" and not has_sel) or (current == "cluster" and not clusters):
         return options, "pam50_subtype"
     return options, no_update
@@ -176,7 +183,7 @@ def cluster_series(res) -> pd.Series | None:
 def survival_chart(filtered, selected, split, event, clusters):
     df, sel = _frames(filtered, selected)
     groups, order, colors = figures.survival_groups(df, split, sel, cluster_series(clusters))
-    return figures.km_figure(df, groups, order, colors, event=event)
+    return figures.km_figure(df, groups, order, colors, event=event, height=H_KM)
 
 
 # --------------------------------------------------------------------------- #
@@ -193,7 +200,7 @@ def dist_controls(kind):
           Input("ov-dist-log", "value"), Input("ov-dist-bins", "value"))
 def distribution_chart(filtered, selected, column, kind, stat_flags, log_flag, nbins):
     df, sel = _frames(filtered, selected)
-    fig = figures.distribution_figure(df, sel, column, kind=kind, group_by="pam50_subtype",
+    fig = figures.distribution_figure(df, sel, column, kind=kind, group_by="pam50_subtype", height=H_DIST,
                                       show_mean="mean" in stat_flags, show_median="median" in stat_flags,
                                       log="log" in log_flag, nbins=nbins)
     v = df[column].dropna()
@@ -218,7 +225,7 @@ def select_range(selection, column, log_flag, kind, filtered):
         lo, hi = 10 ** lo - 1, 10 ** hi - 1
     df = load_data().clinical.loc[filtered or []]
     ids = df.index[df[column].between(lo, hi)]
-    return make_selection(ids, f"{label(column)} between {lo:.1f} and {hi:.1f} (Overview)")
+    return make_selection(ids, f"{label(column)} between {lo:.1f} and {hi:.1f} (Overview)", column, [lo, hi])
 
 
 # --------------------------------------------------------------------------- #
@@ -228,7 +235,7 @@ def select_range(selection, column, log_flag, kind, filtered):
           Input("ov-break-var", "value"))
 def breakdown_chart(filtered, selected, variable):
     df, sel = _frames(filtered, selected)
-    return figures.breakdown_figure(df, sel, variable)
+    return figures.breakdown_figure(df, sel, variable, H_BREAK)
 
 
 @callback(Output("selected", "data", allow_duplicate=True), Input("ov-breakdown", "clickData"),
@@ -239,4 +246,4 @@ def select_category(click, filtered):
     column, category = click["points"][0]["customdata"][:2]
     df = load_data().clinical.loc[filtered or []]
     ids = df.index[df[column].astype(str) == category]
-    return make_selection(ids, f"{label(column)} = {category} (Overview)")
+    return make_selection(ids, f"{label(column)} = {category} (Overview)", column, category)

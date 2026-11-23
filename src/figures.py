@@ -303,8 +303,8 @@ def breakdown_figure(df: pd.DataFrame, selected: pd.Index, variable: str, height
             cds.append([col, cat, int((sub[col].astype(str) == cat).sum())])
         fig.add_trace(go.Bar(
             x=xs, y=ys, orientation="h", name=cat, marker_color=cmap.get(cat, theme.OTHER_COLOR),
-            customdata=cds, text=[f"{v:.0f}%" if v >= 7 else "" for v in xs],
-            textposition="inside", insidetextanchor="middle",
+            customdata=cds, text=[f"{v:.0f}%" if v >= 10 else "" for v in xs],   # too narrow below 10%: hover
+            textposition="inside", insidetextanchor="middle", textangle=0,
             textfont=dict(color="#ffffff" if cat != "Negative" else theme.TEXT),
             hovertemplate="%{y}<br><b>%{customdata[1]}</b>: %{x:.1f}% (%{customdata[2]:,} patients)"
                           "<br><i>Click to select these patients</i><extra></extra>",

@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from src.data import CATEGORICAL_CLINICAL, NUMERIC_CLINICAL, gene_label, label, load_data, mrna_matrix
+from src.data import CATEGORICAL_CLINICAL, NUMERIC_CLINICAL, gene_label, label, load_data
 from src.state import ordered_categories
 
 MUTATED, NOT_MUTATED = "Mutated", "Not mutated"
@@ -41,7 +41,7 @@ def describe(key: str) -> Variable:
     raise ValueError(f"unknown variable {key!r}")
 
 
-def values(key: str, ids, corrected: bool = False) -> pd.Series:
+def values(key: str, ids) -> pd.Series:
     """Values of a variable for the given patients (index = patient id)."""
     source, name = key.split(":", 1)
     d = load_data()
@@ -49,7 +49,7 @@ def values(key: str, ids, corrected: bool = False) -> pd.Series:
         s = d.clinical.loc[ids, name]
         return s.astype(str) if describe(key).kind == "cat" else s
     if source == "gene":
-        return mrna_matrix(corrected).loc[ids, name]
+        return d.mrna.loc[ids, name]
     return d.mutations.loc[ids, name].map({1: MUTATED, 0: NOT_MUTATED})
 
 

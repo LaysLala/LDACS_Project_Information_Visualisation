@@ -89,8 +89,8 @@ settings = card("Settings", [
 ], help_text="Choose a 2-D projection of the 489 gene-expression values and a clustering algorithm, then "
              "press Run. PCA and K-means take about a second; t-SNE, UMAP and hierarchical clustering take "
              "longer the first time (results are kept, so going back to a previous setting is instant). The "
-             "computation uses the patients kept by the filters and the cohort-correction setting at the time "
-             "of the Run. K-means and hierarchical clustering group the patients on all 489 genes; DBSCAN works "
+             "computation uses the patients kept by the filters at the time of the Run. "
+             "K-means and hierarchical clustering group the patients on all 489 genes; DBSCAN works "
              "on the 2-D view, because in 489 dimensions all patients are about equally far apart and no "
              "density structure exists. DBSCAN's eps is read on the k-distance curve (Diagnostics): a "
              "percentile of the distances to the k-th neighbour, the usual 'knee' heuristic.",
@@ -176,29 +176,27 @@ def parameter_blocks(method, algo):
           State("cl-method", "value"), State("cl-perplexity", "value"), State("cl-neighbors", "value"),
           State("cl-mindist", "value"), State("cl-algo", "value"), State("cl-k", "value"),
           State("cl-linkage", "value"), State("cl-eps", "value"), State("cl-minsamples", "value"),
-          State("filtered-ids", "data"), State("cohort-correction", "value"),
-          State("cluster-result", "data"))
+          State("filtered-ids", "data"), State("cluster-result", "data"))
 def run(n_clicks, method, perplexity, neighbors, mindist, algo, k, linkage, eps_pct, min_samples,
-        filtered, cohort, previous):
+        filtered, previous):
     space_name = clustering_space(algo)
     if n_clicks is None and previous:            # coming back to the page: keep the last result
         return no_update, _status(previous, from_cache=True)
     ids = C.ids_key(filtered or [])
     if len(ids) < C.MIN_PATIENTS:
         return no_update, f"At least {C.MIN_PATIENTS} patients are needed; the filters keep {len(ids)}."
-    corrected = "on" in (cohort or [])
     proj = (method, float(perplexity if method == "tsne" else neighbors), float(mindist))
     if method == "pca":
         proj = ("pca", 0.0, 0.0)
     t0 = time.perf_counter()
-    xy, extra = C.projection(*proj, ids, corrected)
-    raw, info = C.cluster_labels(algo, int(k), linkage, float(eps_pct), int(min_samples), space_name, proj, ids, corrected)
+    xy, extra = C.projection(*proj, ids)
+    raw, info = C.cluster_labels(algo, int(k), linkage, float(eps_pct), int(min_samples), space_name, proj, ids)
     names = C.name_clusters(raw)
     result = {
         "ids": list(ids), "x": xy[:, 0].tolist(), "y": xy[:, 1].tolist(), "labels": names.tolist(),
         "method": method, "extra": [float(e) for e in extra], "proj": list(proj), "algo": algo, "k": int(k),
         "linkage": linkage, "eps_pct": float(eps_pct), "min_samples": int(min_samples), "space": space_name,
-        "corrected": corrected, "info": info, "seconds": time.perf_counter() - t0,
+        "info": info, "seconds": time.perf_counter() - t0,
     }
     return result, _status(result)
 
@@ -214,7 +212,7 @@ def _status(res, from_cache=False):
     where = "489 genes" if res["space"] == "genes" else "the 2-D view"
     parts = [f"{METHOD_NAME[res['method']]} + {algo} on {where}: {n_clusters} cluster{'s' if n_clusters != 1 else ''}",
              f"{noise:,} noise points" if noise else None,
-             f"{len(res['ids']):,} patients", "cohort effect removed" if res["corrected"] else None,
+             f"{len(res['ids']):,} patients",
              "last result" if from_cache else f"{res['seconds']:.1f} s"]
     text = " · ".join(p for p in parts if p)
     inv = res["info"].get("inversions")
@@ -233,19 +231,17 @@ def _patients(res, filtered):
 
 @callback(Output("cl-proj", "figure"), Output("cl-proj-note", "children"),
           Input("cluster-result", "data"), Input("filtered-ids", "data"), Input("selected", "data"),
-          Input("cl-colour", "value"), Input("cohort-correction", "value"))
-def projection(res, filtered, selected, colour, cohort):
+          Input("cl-colour", "value"))
+def projection(res, filtered, selected, colour):
     if not res:
         return figures.empty_figure("Press Run to compute a projection", 390), ""
     visible = _patients(res, filtered)
     sel = pd.Index(visible_selection(selected, filtered or []))
-    fig = FC.projection_figure(res, visible, sel, colour, res["corrected"], height=390)
+    fig = FC.projection_figure(res, visible, sel, colour, height=390)
     notes = []
     if set(filtered or []) != set(res["ids"]):
         notes.append(f"Filters changed since the last Run: showing the {len(visible):,} computed patients that "
                      "still match. Press Run to recompute on the current patients.")
-    if ("on" in (cohort or [])) != res["corrected"]:
-        notes.append("The cohort-correction setting changed since the last Run: press Run to apply it.")
     if not notes:
         notes.append("Lasso or box select to share a selection with every page.")
     return fig, " ".join(notes)
@@ -271,27 +267,27 @@ def projection_select(box):
 def diagnostics(res, tab):
     if not res:
         return figures.empty_figure("Press Run first", 330), ""
-    ids, proj, corr, sp = tuple(res["ids"]), tuple(res["proj"]), res["corrected"], res["space"]
+    ids, proj, sp = tuple(res["ids"]), tuple(res["proj"]), res["space"]
     where = "489 genes" if sp == "genes" else "the 2-D view"
     if tab == "quality":
-        K, R, auc = C.rnx(proj, ids, corr)
+        K, R, auc = C.rnx(proj, ids)
         return (FC.rnx_figure(K, R, auc, res["method"], 330),
                 f"How well the 2-D view keeps each patient's neighbours from the 489-D space (AUC = {auc:.3f}; "
                 "t-SNE is usually best for small K, PCA for large K).")
     if tab == "tree":
         if res["algo"] != "hierarchical":
             return figures.empty_figure("Choose Hierarchical clustering and press Run to see the dendrogram", 330), ""
-        Z = C.linkage_tree(res["linkage"], sp, proj, ids, corr)
+        Z = C.linkage_tree(res["linkage"], sp, proj, ids)
         inv = alg.count_inversions(Z)
         return (FC.dendrogram_figure(Z, res["k"], len(ids), inv, 330),
                 f"{res['linkage'].capitalize()} linkage on {where}; dashed line = cut into {res['k']} clusters "
                 "(k slider + Run). Click a dot to select that branch.")
     if res["algo"] == "dbscan":
-        kd = C.k_distance(res["min_samples"], sp, proj, ids, corr)
+        kd = C.k_distance(res["min_samples"], sp, proj, ids)
         return (FC.kdistance_figure(kd, res["info"]["eps"], res["eps_pct"], res["min_samples"], 330),
                 f"Distance of each patient to its {res['min_samples'] - 1}-th neighbour in {where}, sorted. "
                 "eps is usually taken at the knee of the curve.")
-    table = C.choose_k(sp, proj, ids, corr)
+    table = C.choose_k(sp, proj, ids)
     best = int(table.loc[table["CH"].idxmax(), "k"])
     return (FC.choose_k_figure(table, res["k"], 330),
             f"K-means in {where}, k = 2..8 (circle = current k). Calinski–Harabasz is highest at k = {best}.")
@@ -306,7 +302,7 @@ def branch_select(click, res, tab):
     if not cd:
         return no_update
     members = C.branch_members(int(cd[0]), res["linkage"], res["space"], tuple(res["proj"]),
-                               tuple(res["ids"]), res["corrected"])
+                               tuple(res["ids"]))
     return make_selection(members, f"dendrogram branch of {len(members):,} patients (Clusters)")
 
 

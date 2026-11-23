@@ -144,14 +144,6 @@ def sidebar() -> html.Aside:
               for cid, text in (("f-chemo", "Chemotherapy"), ("f-hormone", "Hormone therapy"),
                                 ("f-radio", "Radiotherapy"))],
         ]),
-        html.Fieldset([
-            html.Legend("Data options"),
-            dcc.Checklist(id="cohort-correction",
-                          options=[{"label": " Remove cohort (batch) effect", "value": "on"}],
-                          value=[], className="switch"),
-            html.P("Off: gene expression as published. On: each gene is centred within its sampling "
-                   "cohort (used by projections and clustering).", className="muted small"),
-        ], className="data-options"),
         html.Div([
             html.P(id="manual-filter-status", className="muted small"),
             html.Button("Clear all filters", id="clear-filters", className="btn btn-link"),
@@ -195,9 +187,7 @@ HELP_SECTIONS = [
                                "clustering algorithm, then press Run (t-SNE and UMAP take 10-30 s). The "
                                "clusters can then be used on the other pages ('by cluster')."),
     ("Good to know", "Survival curves account for patients still alive at the end of follow-up "
-                     "(censoring) and stop when fewer than 10 patients remain at risk. 'Remove cohort "
-                     "effect' (sidebar) corrects a technical difference between the 5 sampling batches; "
-                     "it is off by default."),
+                     "(censoring) and stop when fewer than 10 patients remain at risk."),
 ]
 
 
@@ -207,7 +197,5 @@ def help_panel() -> html.Div:
             html.Div([html.H2("How to use METABRIC Explorer"),
                       html.Button("Close", id="help-close", className="btn")], className="modal-head"),
             *[html.Div([html.H3(t), html.P(p)]) for t, p in HELP_SECTIONS],
-            html.P("Data: METABRIC breast cancer cohort (1,904 patients). Course project, LDACS2210, UCLouvain.",
-                   className="muted small"),
         ], className="modal", role="dialog", **{"aria-modal": "true", "aria-label": "Help"}),
     ], id="help-panel", className="modal-backdrop", style={"display": "none"})

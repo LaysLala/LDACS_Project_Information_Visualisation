@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: end of Phase 5 (2026-11-23). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: Phase 5 feedback round (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -40,7 +40,7 @@ Read it before the TA meeting and again before the oral exam. Every number quote
 | **3. Clusters & projections** | settings + Run · projection scatter · quality (choose-k, R_NX, dendrogram) · clusters vs subtypes · survival per cluster | Q5 structure in gene expression? Q6 do clusters match subtypes / prognosis? Q7 outliers? |
 
 Shared by all pages: **header** (page tabs, patient counter, reset, help) and **filter sidebar** (subtype, receptors,
-age, stage, grade, vital status, treatment, cohort-correction toggle, keep/exclude selection).
+age, stage, grade, vital status, treatment) and **selection bar** (keep only / exclude / clear).
 
 **Two interaction mechanisms** (the core of the grading item "linked views"):
 - **Filter** (sidebar) = remove patients from every view.
@@ -111,7 +111,8 @@ Format: **Decision**: why. *(Course link.)*
   The biology (ER, subtype, grade) is on PC2. This is a technical **batch effect**.
 - Correction (`remove_cohort_effect`): centre each gene within its cohort, then re-standardise. Safe because the cohorts have
   the same subtype mix (normalized MI cohort ↔ PAM50 = 0.015). After correction: cohort ↔ PCs ≤ 0.01, PC1 = ER/subtype axis.
-- **Dashboard: OFF by default** (data as published), with a sidebar toggle. The notebook uses the corrected data from §7.3 on.
+- **Dashboard: no correction** (removed in the feedback round: too hard to interpret for a user). The correction is
+  explored in the notebook only, which uses the corrected data from §7.3 on.
 
 **Dimensionality reduction** (on the 489 mRNA z-scores; clinical variables only colour the points)
 - PCA: PC1 explains ~8%; 33 PCs for 50% of variance, 161 for 80%. No elbow: a 2-D PCA shows a small part of the structure.
@@ -122,7 +123,7 @@ Format: **Decision**: why. *(Course link.)*
 - **R_NX quality** (Lee & Verleysen; Lee's lecture): AUC t-SNE 0.272 > UMAP 0.189 > PCA 0.142 for small neighbourhoods,
   but PCA is best for large K (global structure). No single best projection.
 
-**Clustering** (on the corrected 489-D data)
+**Clustering** (notebook, on the corrected 489-D data; the dashboard uses the published data, so its numbers differ)
 - **K-means, choosing k**: W decreases only ~13% from k = 2 to 10 (no elbow); B increases smoothly; Calinski–Harabasz is
   highest at k = 2 and decreases. → No well-separated clusters.
 - k = 2 reproduces **ER+/luminal vs ER−/basal** (normalized MI with ER = 0.52).
@@ -153,7 +154,7 @@ the course and not needed by the dashboard.
 | **Pair view** adapts to variable types (cross-table / scatter / box) and accepts genes | One linked view replaces three static cards | |
 | **Cluster heatmap** (heatmap + dendrogram) | Course idiom to assess clusters | VAD Ch. 7 |
 | Heavy algorithms behind a **Run** button, spinner, cache; PCA precomputed | Responsiveness rule: 0.1 s / 1 s / 10 s | VAD rules of thumb; brief §4 |
-| Cohort-correction toggle **off by default** | Show data as published; correction is an option the user understands | |
+| ~~Cohort-correction toggle~~ (removed in the feedback round) | too hard to interpret for a dashboard user | |
 | **Trimmed** (outside the course, heavy to justify): Fisher/t-tests, volcano plot, oncoprint, silhouette, ARI, Cramér's V, CI band | Stay within the course; fewer, stronger views | course scope |
 
 ### Phase 2: app skeleton + Overview page (`app.py`, `pages/`, `src/state.py`, `src/figures.py`, …)
@@ -178,7 +179,7 @@ the course and not needed by the dashboard.
 | Kaplan–Meier | split by any categorical variable (≤ 8 groups) or **selection vs rest**; disease-specific / overall; log-rank as text; groups < 10 patients left out (said under the chart) | |
 | Distribution | histogram or box; mean/median lines; log scale (log(1 + x), ticks labelled in real values); **bin slider**; **drag a range → select**; with a selection both groups shown as **% of their own group** to compare shapes | TP1 bins; VAD "eyes beat memory" |
 | Categorical breakdown | 100% stacked bars, all vs selection; **click a segment → select** | |
-| Sidebar | subtype checklist with **live counts** (scented widget), receptors, age range, stage, grade, vital status, treatments, cohort-correction toggle; stays visible while scrolling | VAD scented widgets; grid 4.1 |
+| Sidebar | subtype checklist with **live counts** (scented widget), receptors, age range, stage, grade, vital status, treatments; stays visible while scrolling | VAD scented widgets; grid 4.1 |
 | Selection bar (under the header, only when something is selected) | "Keep only these" / "Exclude these" turn the selection into a filter; "Clear selection" | grid 4.3 feedback |
 | (i) buttons, Help panel, hover templates | details on demand | grid 2.2, 4.2 |
 | Loading indicator after 300 ms | feedback without flicker | grid 4.3 |
@@ -220,7 +221,6 @@ scale; as "% of group" their shapes are directly comparable (side by side on a c
 | The pair view **chooses the chart from the types** | The user thinks in variables, not chart types; it replaces three static cards of the first sketch. Default: PAM50 × integrative cluster. |
 | **Genes ranked by between-group variation B / total** (per gene) | Lecture 06's *B*, applied to one gene: the share of its variation explained by the groups. Replaces the ANOVA F-test of the notebook (outside the course). |
 | "Unknown" values **left out** of mutual information | "Unknown" is not information. ⚠️ Because of this, the dashboard's values are slightly higher than the notebook's (PAM50 ↔ 3-gene 0.38 vs 0.32, the 3-gene classifier has 204 Unknown). Same ranking. |
-| Cohort-correction toggle applies to **every gene-expression view** (pair view, heatmap) | One switch, consistent everywhere; the note under the chart says when it is on. |
 | Cell values printed in the heatmap only up to 15 genes | Above that, rows are too thin to read the numbers (data-ink, readability). |
 | Ward to order the **genes** in the heatmap | Same reason as for patients (balanced, no inversions); here it only orders rows, the groups stay fixed. |
 
@@ -266,7 +266,7 @@ cluster-heatmap cards of page 2 have a **"By cluster"** mode (what does each clu
 | Decision | Why |
 |---|---|
 | **Run button**, nothing heavy on slider moves; spinner during the run | VAD responsiveness classes: > 1 s needs explicit feedback; the brief suggests forcing a choice before heavy algorithms. |
-| **Cache** (`functools.lru_cache`) per method + parameters + patients + cohort setting | Going back to a previous setting is instant (re-run t-SNE: 12.5 s → 0.0 s). |
+| **Cache** (`functools.lru_cache`) per method + parameters + patients | Going back to a previous setting is instant (re-run t-SNE: 12.5 s → 0.0 s). |
 | Runs use the **filtered patients at the time of the Run**; if filters change, the projection keeps the computed patients that still match and says "press Run" | No surprise 30-s recomputation when a filter is clicked; the user stays in control. |
 | **UMAP warm-up** in a background thread at start-up | UMAP compiles its code on first use (numba); this moves ~15–20 s out of the first Run. |
 | **DBSCAN eps as a percentile of the k-distance curve** (default 90th), k = min_samples − 1 | TP3's heuristic made interactive; works in any space (489-D distances ≈ 20–50, UMAP ≈ 0.1–0.5) without retuning the slider. |
@@ -306,7 +306,7 @@ ids-only stores, and the other charts never wait for a heavy computation.
 
 **Simplicity review against the course.** Everything the app does was re-checked against the practical sessions, the
 clustering and DR lectures and Munzner's slides. Outside the course remain only the four justified items (Kaplan–Meier,
-Spearman, cohort correction, Ward as default). Three controls were **removed** because they added a concept without
+Spearman, Ward as default; the cohort correction was later removed). Three controls were **removed** because they added a concept without
 adding insight:
 
 | Removed | Replaced by |
@@ -346,6 +346,19 @@ at 20 genes); "1 cluster" grammar; README note for Windows (`py` instead of `pyt
 t-SNE/UMAP still take 10–30 s on 1,904 patients (mitigated by Run, spinner, cache, warm-up); the dashboard is designed
 for a laptop/desktop screen (it stacks on narrow screens but is not optimised for phones).
 
+### Phase 5, feedback round (after running the app locally)
+
+| Feedback | Change |
+|---|---|
+| Clicking a subtype did not change the survival chart | a **new selection switches the survival chart to "selection vs rest"**; clearing it switches back to subtypes; the user can still pick another split |
+| *Keep only / Exclude* did not update the sidebar | a selection made on a variable that has a sidebar control (subtype, ER/PR/HER2, stage, grade, vital status, treatments, age range) now **changes that control**: keep only Basal ticks only Basal, exclude ER+ sets ER to "−", keep age 40–50 moves the slider. Selections without a matching control (lasso, dendrogram branch, lymph-node range…) still become a list of kept/excluded patients, reported under the sidebar |
+| Survival and distribution charts overflowed their cards | every chart has **one height used by both the container and the figure** (they had drifted apart) |
+| The cohort (batch) correction was confusing | **removed from the dashboard** (sidebar toggle, corrected-data code paths, help text). The finding stays in the notebook, which now defines the correction itself |
+
+**Consequence for numbers:** the notebook's clustering results (e.g. K-means k = 6 purity 0.59, survival χ² 102) were
+computed on the *corrected* data; the dashboard works on the published data, so its values differ (e.g. K-means k = 4
+purity 0.46, χ² 22). Quote the dashboard's values when demonstrating the dashboard.
+
 ---
 
 ## 3. Course mapping
@@ -370,7 +383,7 @@ for a laptop/desktop screen (it stacks on narrow screens but is not optimised fo
 | Between-group variation B (gene ranking) | Relationships heatmap | lecture 06 (CH index) | ✅ | applied per gene |
 | **Kaplan–Meier + log-rank** | Overview, Clusters | not in course | ⚠️ | survival is the dataset's main outcome; a KM curve is derived data shown as superimposed lines (VAD); "% deceased" would be misleading with censoring |
 | **Spearman** | association matrix | not explicit | ⚠️ | small step from TP1's Pearson; justified by skewness |
-| **Cohort (batch) correction** | sidebar toggle | not in course | ⚠️ | found *with* a course tool (PCA coloured by a label); DR lecture: "appropriate data preprocessing" |
+| **Cohort (batch) correction** | notebook only | not in course | ⚠️ | found *with* a course tool (PCA coloured by a label); removed from the dashboard (too hard to interpret) |
 
 ---
 
@@ -401,7 +414,7 @@ artefact is entirely from cohort 1.
 It would if a cohort were enriched in one subtype; here the mix is the same. After correction the subtype information is
 fully kept (15-NN accuracy 68% → 69%) and PC1 becomes the ER/subtype axis. The proper published method, ComBat, also
 adjusts variances with shrinkage; our mean-centring is its simplest form, enough with large balanced batches (167–734
-patients). It is off by default in the app so the user sees both.
+patients). We kept it in the notebook only: in the dashboard it was a concept users could not easily act on.
 
 ### Visualization design
 
@@ -529,7 +542,7 @@ dragging the cut line changes the number of clusters.
 
 - The gene panel lacks the PAM50 genes and classic markers (*ESR1*, *PGR*, *MKI67*), so subtype separation is weaker than
   in the literature.
-- Batch correction by mean-centring is simpler than ComBat.
+- The dashboard shows expression as published: the cohort (batch) effect found in the notebook is not corrected there.
 - Kaplan–Meier/log-rank compare groups; they do not adjust for confounders (age, stage) as a Cox model would.
 - t-SNE/UMAP are stochastic (fixed seed for reproducibility) and their large-scale layout is not reliable.
 - Purity depends on k; mutual information values are low in absolute terms (0.3 is already strong).

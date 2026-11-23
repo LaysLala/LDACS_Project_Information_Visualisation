@@ -26,6 +26,8 @@ dash.register_page(__name__, path="/relationships", name="Relationships & genomi
 VAR_OPTIONS = V.options()
 COLOUR_OPTIONS = ([{"label": "No colour", "value": "none"}]
                   + [{"label": V.describe("clin:" + c).label, "value": f"clin:{c}"} for c in categorical_columns()])
+# one height per chart, used by both the container and the figure (they must match)
+H_MATRIX, H_PAIR, H_MUT, H_HEAT = 330, 300, 300, 300
 DEFAULT_X, DEFAULT_Y = "clin:integrative_cluster", "clin:pam50_subtype"
 
 
@@ -39,7 +41,7 @@ def _sel(selected, filtered):
 layout = html.Div([
     html.Div([
         card("How are the variables linked?",
-             [graph("rel-matrix", 330), html.P(id="rel-matrix-note", className="card-note")],
+             [graph("rel-matrix", H_MATRIX), html.P(id="rel-matrix-note", className="card-note")],
              help_text="Lower triangle of an association matrix (the matrix is symmetric, the diagonal is "
                        "always 1). Categorical: normalized mutual information, 0 = independent, 1 = one "
                        "variable determines the other ('Unknown' values are left out). Numeric: Spearman "
@@ -59,7 +61,7 @@ layout = html.Div([
                  labelled("Colour", dcc.Dropdown(id="rel-colour", options=COLOUR_OPTIONS, value="clin:pam50_subtype",
                                                  clearable=False, className="dropdown")),
               ], className="toolbar"),
-              graph("rel-pair", 300), html.P(id="rel-pair-note", className="card-note")],
+              graph("rel-pair", H_PAIR), html.P(id="rel-pair-note", className="card-note")],
              help_text="Any two variables: clinical, gene expression (type a gene name) or mutation status. "
                        "The chart adapts to their types: cross-table (two categorical), scatter (two numeric), "
                        "box plots (one of each). Click a cell or a box, or drag a box on the scatter, to select "
@@ -68,7 +70,7 @@ layout = html.Div([
     ], className="row"),
     html.Div([
         card("Which genes are mutated?",
-             [graph("rel-mut", 300), html.P(id="rel-mut-note", className="card-note")],
+             [graph("rel-mut", H_MUT), html.P(id="rel-mut-note", className="card-note")],
              help_text="Share of patients with at least one mutation in each of the most frequently mutated "
                        "genes. 'Selection vs rest' compares the current selection with the other filtered "
                        "patients on a common scale; 'By subtype' shows one column per PAM50 subtype. Click a "
@@ -84,7 +86,7 @@ layout = html.Div([
              ],
              class_name="span-6"),
         card("Cluster heatmap: mean expression by group",
-             [graph("rel-heat", 300), html.P(id="rel-heat-note", className="card-note")],
+             [graph("rel-heat", H_HEAT), html.P(id="rel-heat-note", className="card-note")],
              help_text="Mean expression (z-score) of the genes that differ most between the groups, ranked by "
                        "the share of each gene's variation that lies between the groups (between-group "
                        "variation B / total). Rows are reordered by a hierarchical clustering of the genes "
@@ -119,7 +121,7 @@ def _picked(x, y):
           Input("rel-x", "value"), Input("rel-y", "value"))
 def matrix(filtered, mode, x, y):
     df = load_data().clinical.loc[filtered or []]
-    fig = FR.association_matrix(df, mode, _picked(x, y))
+    fig = FR.association_matrix(df, mode, _picked(x, y), H_MATRIX)
     what = "normalized mutual information" if mode == "cat" else "Spearman correlation"
     return fig, f"{what.capitalize()} between clinical variables · n = {len(df):,} filtered patients · click a cell"
 
@@ -138,24 +140,20 @@ def matrix_click(click):
 # --------------------------------------------------------------------------- #
 @callback(Output("rel-pair", "figure"), Output("rel-pair-note", "children"), Output("rel-colour", "disabled"),
           Input("filtered-ids", "data"), Input("selected", "data"), Input("rel-x", "value"),
-          Input("rel-y", "value"), Input("rel-colour", "value"), Input("cohort-correction", "value"))
-def pair(filtered, selected, x, y, colour, cohort):
+          Input("rel-y", "value"), Input("rel-colour", "value"))
+def pair(filtered, selected, x, y, colour):
     ids = pd.Index(filtered or [])
-    corrected = "on" in (cohort or [])
-    fig, note = FR.pair_figure(x, y, ids, _sel(selected, filtered), None if colour == "none" else colour, corrected)
-    if corrected and (x.startswith("gene:") or y.startswith("gene:")):
-        note += " · cohort effect removed"
+    fig, note = FR.pair_figure(x, y, ids, _sel(selected, filtered), None if colour == "none" else colour, height=H_PAIR)
     return fig, note, FR.pair_kind(x, y) != "scatter"
 
 
 @callback(Output("selected", "data", allow_duplicate=True),
           Input("rel-pair", "clickData"), Input("rel-pair", "selectedData"),
           State("rel-x", "value"), State("rel-y", "value"), State("filtered-ids", "data"),
-          State("cohort-correction", "value"), prevent_initial_call=True)
-def pair_select(click, box, x, y, filtered, cohort):
+          prevent_initial_call=True)
+def pair_select(click, box, x, y, filtered):
     trigger = dash.ctx.triggered_id and dash.ctx.triggered[0]["prop_id"].split(".")[1]
     ids = pd.Index(filtered or [])
-    corrected = "on" in (cohort or [])
     kind = FR.pair_kind(x, y)
     if trigger == "selectedData" and kind == "scatter":
         if not box or not box.get("points"):
@@ -167,7 +165,7 @@ def pair_select(click, box, x, y, filtered, cohort):
     point = click["points"][0]
     if kind == "crosstab":
         xcat, ycat = point["customdata"][:2]
-        xs, ys = V.values(x, ids, corrected), V.values(y, ids, corrected)
+        xs, ys = V.values(x, ids), V.values(y, ids)
         chosen = ids[(xs == xcat).to_numpy() & (ys == ycat).to_numpy()]
         return make_selection(chosen, f"{V.describe(y).short} = {ycat} and {V.describe(x).short} = {xcat} (Relationships)")
     if kind == "box":
@@ -175,8 +173,10 @@ def pair_select(click, box, x, y, filtered, cohort):
         category = point.get("x")
         if category is None:
             return no_update
-        vals = V.values(catkey, ids, corrected)
-        return make_selection(ids[(vals == category).to_numpy()], f"{V.describe(catkey).short} = {category} (Relationships)")
+        vals = V.values(catkey, ids)
+        column = catkey.split(":", 1)[1] if catkey.startswith("clin:") else None
+        return make_selection(ids[(vals == category).to_numpy()], f"{V.describe(catkey).short} = {category} (Relationships)",
+                              column, category)
     return no_update
 
 
@@ -197,8 +197,8 @@ def mutations(filtered, selected, mode, n, res):
     ids = pd.Index(filtered or [])
     sel = _sel(selected, filtered)
     if mode == "cluster" and not res:
-        return FR.mutation_figure(ids, sel, "subtype", n), NO_CLUSTERS
-    fig = FR.mutation_figure(ids, sel, mode, n, clusters=_clusters(res))
+        return FR.mutation_figure(ids, sel, "subtype", n, H_MUT), NO_CLUSTERS
+    fig = FR.mutation_figure(ids, sel, mode, n, H_MUT, clusters=_clusters(res))
     if mode == "selection" and not len(sel):
         note = "No selection: showing all filtered patients. Select patients anywhere to compare them with the rest."
     else:
@@ -235,21 +235,18 @@ def mutation_select(click, mode, filtered, res):
 # --------------------------------------------------------------------------- #
 @callback(Output("rel-heat", "figure"), Output("rel-heat-note", "children"),
           Input("filtered-ids", "data"), Input("selected", "data"), Input("rel-heat-mode", "value"),
-          Input("rel-heat-n", "value"), Input("cohort-correction", "value"), Input("cluster-result", "data"))
-def heatmap(filtered, selected, mode, n, cohort, res):
+          Input("rel-heat-n", "value"), Input("cluster-result", "data"))
+def heatmap(filtered, selected, mode, n, res):
     ids = pd.Index(filtered or [])
     sel = _sel(selected, filtered)
-    corrected = "on" in (cohort or [])
     if mode == "cluster" and not res:
-        fig, genes = FR.expression_heatmap(ids, sel, "subtype", n, corrected)
+        fig, genes = FR.expression_heatmap(ids, sel, "subtype", n, height=H_HEAT)
         return fig, NO_CLUSTERS
-    fig, genes = FR.expression_heatmap(ids, sel, mode, n, corrected, clusters=_clusters(res))
+    fig, genes = FR.expression_heatmap(ids, sel, mode, n, height=H_HEAT, clusters=_clusters(res))
     if mode == "selection" and not len(sel):
         note = "No selection: showing PAM50 subtypes. Select patients anywhere to compare them with the rest."
     else:
         note = f"{len(genes)} genes that differ most between the groups · rows ordered by a dendrogram (Ward)"
-    if corrected:
-        note += " · cohort effect removed"
     return fig, note
 
 

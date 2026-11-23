@@ -111,9 +111,48 @@ def visible_selection(selected: dict | None, filtered_ids) -> list:
     return [i for i in selected["ids"] if i in kept]
 
 
-def make_selection(ids, source: str) -> dict:
-    """Store payload for a new selection (ids as plain ints for JSON)."""
-    return {"ids": [int(i) for i in ids], "source": source}
+# Sidebar control matching each clinical column: a selection made on one of these columns
+# ("subtype = Basal", "ER = Negative", "age 40-50") can be turned into that control's value,
+# so "Keep only" / "Exclude" visibly update the sidebar instead of a hidden list of patients.
+CONTROL_FOR = {
+    **{col: cid for cid, col in CHECKLIST_FILTERS.items()},
+    **{col: cid for cid, col in RECEPTOR_FILTERS.items()},
+    **{col: cid for cid, col in TREATMENT_FILTERS.items()},
+    "age_at_diagnosis": "f-age",
+}
+OPPOSITE = {"Positive": "Negative", "Negative": "Positive", "Yes": "No", "No": "Yes"}
+
+
+def make_selection(ids, source: str, column: str | None = None, value=None) -> dict:
+    """Store payload for a new selection (ids as plain ints for JSON).
+
+    `column` / `value` describe the selection when it is "all filtered patients with
+    column == value" (or, for age, value = [low, high]); only kept for columns that have a
+    sidebar control."""
+    payload = {"ids": [int(i) for i in ids], "source": source}
+    if column in CONTROL_FOR:
+        payload["filter"] = {"column": column, "value": value}
+    return payload
+
+
+def selection_as_filter(spec: dict, keep: bool, current: dict) -> dict | None:
+    """New sidebar values that keep only / exclude a selection described by `spec`
+    ({column, value}); None when no sidebar control can express it."""
+    cid = CONTROL_FOR.get(spec.get("column"))
+    value = spec.get("value")
+    if cid is None:
+        return None
+    if cid in CHECKLIST_FILTERS:
+        chosen = current.get(cid) or []
+        return {cid: [value] if keep else [v for v in chosen if v != value]}
+    if cid in RECEPTOR_FILTERS or cid in TREATMENT_FILTERS:
+        if value not in OPPOSITE:
+            return None
+        return {cid: value if keep else OPPOSITE[value]}
+    if cid == "f-age" and keep:                       # a range can be kept, not excluded, with one slider
+        lo, hi = age_bounds()
+        return {cid: [max(lo, math.floor(value[0])), min(hi, math.ceil(value[1]))]}
+    return None
 
 
 def categorical_columns(max_categories: int = 8) -> list[str]:

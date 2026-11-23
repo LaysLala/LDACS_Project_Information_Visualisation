@@ -12,7 +12,8 @@ from dash import Input, Output, State, callback, ctx, no_update
 from src.components import PAGES, subtype_option
 from src.data import load_data
 from src.state import (CHECKLIST_FILTERS, EMPTY_MANUAL, RECEPTOR_FILTERS, TREATMENT_FILTERS,
-                       apply_filters, checklist_options, default_filters, visible_selection)
+                       apply_filters, checklist_options, default_filters, selection_as_filter,
+                       visible_selection)
 
 FILTER_IDS = list(CHECKLIST_FILTERS) + list(RECEPTOR_FILTERS) + list(TREATMENT_FILTERS) + ["f-age"]
 FILTER_INPUTS = [Input(cid, "value") for cid in FILTER_IDS]
@@ -66,19 +67,30 @@ def clear_selection(_):
 
 
 @callback(Output("manual-filter", "data", allow_duplicate=True), Output("selected", "data", allow_duplicate=True),
+          [Output(cid, "value", allow_duplicate=True) for cid in FILTER_IDS],
           Input("keep-selection", "n_clicks"), Input("exclude-selection", "n_clicks"),
           State("selected", "data"), State("filtered-ids", "data"), State("manual-filter", "data"),
+          [State(cid, "value") for cid in FILTER_IDS],
           prevent_initial_call=True)
-def selection_to_filter(_keep, _exclude, selected, filtered, manual):
+def selection_to_filter(_keep, _exclude, selected, filtered, manual, *current):
+    """Turn the selection into a filter. If it was made on a variable that has a sidebar control
+    (subtype, receptor, stage, grade, vital status, treatment, age range), change that control so the
+    user sees the filter; otherwise keep / exclude the selected patients as a list."""
+    unchanged = [no_update] * len(FILTER_IDS)
     ids = visible_selection(selected, filtered or [])
     if not ids:
-        return no_update, no_update
+        return no_update, no_update, *unchanged
+    keep = ctx.triggered_id == "keep-selection"
+    spec = (selected or {}).get("filter")
+    new_values = selection_as_filter(spec, keep, dict(zip(FILTER_IDS, current))) if spec else None
+    if new_values:
+        return no_update, None, *[new_values.get(cid, no_update) for cid in FILTER_IDS]
     manual = dict(manual or EMPTY_MANUAL)
-    if ctx.triggered_id == "keep-selection":
+    if keep:
         manual["keep"] = ids
     else:
         manual["exclude"] = sorted(set(manual.get("exclude") or []) | set(ids))
-    return manual, None
+    return manual, None, *unchanged
 
 
 @callback(Output("manual-filter-status", "children"), Input("manual-filter", "data"))

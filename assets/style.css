@@ -98,7 +98,7 @@ button { font: inherit; }
 .small { font-size: 12px; }
 
 .subtype-list label { display: flex; align-items: center; gap: 8px; min-height: 26px; cursor: pointer; }
-.subtype-list input, .chips input, .checks input, .switch input { accent-color: var(--accent); margin: 0; }
+.subtype-list input, .chips input, .checks input { accent-color: var(--accent); margin: 0; }
 .subtype-option { display: flex; align-items: center; gap: 8px; flex: 1; }
 .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .opt-name { flex: 1; }
@@ -115,8 +115,6 @@ button { font: inherit; }
 }
 .chips label:has(input:checked) { background: var(--accent-soft); border-color: #b7d3f6; }
 
-.data-options { padding-top: 14px; border-top: 1px solid var(--border); }
-.switch label { display: flex; align-items: center; gap: 6px; font-weight: 500; cursor: pointer; }
 .sidebar-footer { padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
 
 /* ---------- segmented control (RadioItems) ---------- */

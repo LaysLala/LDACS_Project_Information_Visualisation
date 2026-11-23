@@ -20,7 +20,7 @@ from scipy.cluster import hierarchy
 
 from src import stats, theme
 from src import variables as V
-from src.data import NUMERIC_CLINICAL, UNKNOWN, label, load_data, mrna_matrix
+from src.data import NUMERIC_CLINICAL, UNKNOWN, label, load_data
 from src.figures import ALL_COLOR, REST_COLOR, SELECTION_COLOR, empty_figure
 
 ASSOC_CATEGORICAL = ["pam50_subtype", "er_status", "pr_status", "her2_status", "three_gene_subtype",
@@ -103,7 +103,7 @@ def pair_kind(xkey: str, ykey: str) -> str:
 
 
 def pair_figure(xkey: str, ykey: str, ids, selected: pd.Index, color_key: str | None = None,
-                corrected: bool = False, height: int = 330) -> tuple[go.Figure, str]:
+                height: int = 330) -> tuple[go.Figure, str]:
     """Figure + one-line summary for any pair of variables."""
     if len(ids) < MIN_PATIENTS:
         return empty_figure(f"Fewer than {MIN_PATIENTS} patients after filtering", height), ""
@@ -111,15 +111,15 @@ def pair_figure(xkey: str, ykey: str, ids, selected: pd.Index, color_key: str | 
         return empty_figure("Pick two different variables", height), ""
     kind = pair_kind(xkey, ykey)
     if kind == "crosstab":
-        return _crosstab(xkey, ykey, ids, selected, corrected, height)
+        return _crosstab(xkey, ykey, ids, selected, height)
     if kind == "scatter":
-        return _scatter(xkey, ykey, ids, selected, color_key, corrected, height)
+        return _scatter(xkey, ykey, ids, selected, color_key, height)
     numkey, catkey = (xkey, ykey) if V.describe(xkey).kind == "num" else (ykey, xkey)
-    return _boxes(numkey, catkey, ids, selected, corrected, height)
+    return _boxes(numkey, catkey, ids, selected, height)
 
 
-def _crosstab(xkey, ykey, ids, selected, corrected, height):
-    xs, ys = V.values(xkey, ids, corrected), V.values(ykey, ids, corrected)
+def _crosstab(xkey, ykey, ids, selected, height):
+    xs, ys = V.values(xkey, ids), V.values(ykey, ids)
     xo, yo = V.categories(xkey, xs), V.categories(ykey, ys)
     counts = pd.crosstab(ys, xs).reindex(index=yo, columns=xo, fill_value=0)
     sel_counts = (pd.crosstab(ys[ys.index.isin(selected)], xs[xs.index.isin(selected)])
@@ -145,8 +145,8 @@ def _crosstab(xkey, ykey, ids, selected, corrected, height):
     return fig, f"Categorical × categorical → cross-table (row %) · n = {len(ids):,} · normalized mutual information = {mi:.2f}"
 
 
-def _scatter(xkey, ykey, ids, selected, color_key, corrected, height):
-    x, y = V.values(xkey, ids, corrected), V.values(ykey, ids, corrected)
+def _scatter(xkey, ykey, ids, selected, color_key, height):
+    x, y = V.values(xkey, ids), V.values(ykey, ids)
     ok = x.notna() & y.notna()
     x, y = x[ok], y[ok]
     has_sel = len(selected) > 0
@@ -156,7 +156,7 @@ def _scatter(xkey, ykey, ids, selected, color_key, corrected, height):
         fig.add_trace(go.Scattergl(x=x[~is_sel], y=y[~is_sel], mode="markers", name="Not selected",
                                    marker=dict(color=theme.UNSELECTED_COLOR, size=6, opacity=0.5),
                                    customdata=x.index[~is_sel], hovertemplate="patient %{customdata}<extra></extra>"))
-    groups, order, cmap = _colour_groups(color_key, x.index[is_sel] if has_sel else x.index, corrected)
+    groups, order, cmap = _colour_groups(color_key, x.index[is_sel] if has_sel else x.index)
     for g in order:
         m = groups.index[groups == g]
         if len(m) == 0:
@@ -172,11 +172,11 @@ def _scatter(xkey, ykey, ids, selected, color_key, corrected, height):
     return fig, f"Numeric × numeric → scatter · n = {len(x):,} · Spearman ρ = {rho:.2f} · drag a box to select"
 
 
-def _colour_groups(color_key, idx, corrected):
+def _colour_groups(color_key, idx):
     """Colour group per patient for the scatter (categorical colour variables only)."""
     if not color_key:
         return pd.Series("Patients", index=idx), ["Patients"], {"Patients": SELECTION_COLOR}
-    vals = V.values(color_key, idx, corrected)
+    vals = V.values(color_key, idx)
     order = V.categories(color_key, vals)
     name = color_key.split(":", 1)[1]
     if color_key.startswith("mut:"):
@@ -186,8 +186,8 @@ def _colour_groups(color_key, idx, corrected):
     return vals, order, cmap
 
 
-def _boxes(numkey, catkey, ids, selected, corrected, height):
-    y, g = V.values(numkey, ids, corrected), V.values(catkey, ids, corrected)
+def _boxes(numkey, catkey, ids, selected, height):
+    y, g = V.values(numkey, ids), V.values(catkey, ids)
     ok = y.notna()
     y, g = y[ok], g[ok]
     order = V.categories(catkey, g)
@@ -314,11 +314,11 @@ def between_group_share(expr: pd.DataFrame, groups: pd.Series, order: list[str])
     return (between / total).fillna(0)
 
 
-def expression_heatmap(ids, selected: pd.Index, mode: str, n_genes: int = 20, corrected: bool = False,
+def expression_heatmap(ids, selected: pd.Index, mode: str, n_genes: int = 20,
                        height: int = 330, clusters: pd.Series | None = None) -> tuple[go.Figure, list[str]]:
     if len(ids) < MIN_PATIENTS:
         return empty_figure(f"Fewer than {MIN_PATIENTS} patients after filtering", height), []
-    expr = mrna_matrix(corrected).loc[ids]
+    expr = load_data().mrna.loc[ids]
     groups, order, cmap = expression_groups(ids, selected, mode, clusters)
     order = [o for o in order if (groups == o).sum() >= 3]
     if len(order) < 2:
