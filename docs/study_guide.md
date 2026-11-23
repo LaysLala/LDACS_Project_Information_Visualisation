@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: end of Phase 2 (2026-11-18). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: end of Phase 3 (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -201,6 +201,51 @@ update: 1,904 ints is tiny, a data frame with 700 columns is not. The data stays
 *Why normalise the histogram when a selection exists?* 87 selected patients next to 1,904 would be invisible on a count
 scale; as "% of group" their shapes are directly comparable (side by side on a common scale, not from memory).
 
+### Phase 3: Relationships & genomics page (`pages/relationships.py`, `src/figures_relationships.py`, `src/variables.py`)
+
+**Four linked cards (2 × 2, fits one screen)**
+
+| Card | What it shows | Interaction | Course |
+|---|---|---|---|
+| **Association matrix** | lower triangle; *categorical*: normalized mutual information between 9 clinical variables; *numeric*: Spearman ρ between 6 measurements | **click a cell → that pair opens in the pair view**; the pair shown is outlined | TP1 (correlation + MI heatmaps) |
+| **Pair view** | any two variables: clinical, any of the 489 **genes** (expression) or any gene's **mutation status**; the chart follows the types: **cross-table** (cat × cat, row %), **scatter** (num × num, coloured by a categorical variable), **box plots** (num × cat) | click a cell / a box, or drag a box on the scatter → **selection**; with a selection: scatter = selected in colour, rest grey; boxes = selected patients as points over the group boxes | TP1 (scatter, box); VAD linked highlighting |
+| **Mutation frequency** | top 8/12/16 most mutated genes among the filtered patients; *selection vs rest* (grouped bars, common scale) or *by subtype* (heatmap with an "All" column) | click → select the mutated patients (in that subtype) | |
+| **Cluster heatmap** | mean expression per group (PAM50 subtypes, or selection vs rest) for the 10/15/25 genes that differ most; rows reordered by a **Ward dendrogram** of the genes | **click a gene → pair view shows that gene × PAM50** | VAD Ch. 7 cluster heatmap |
+
+**Design decisions**
+
+| Decision | Why |
+|---|---|
+| One **variable registry** (`clin:` / `gene:` / `mut:` keys, `src/variables.py`) | Every chart treats a variable the same way (type, label with units, category order); the Clusters page will reuse it for "colour by". |
+| The pair view **chooses the chart from the types** | The user thinks in variables, not chart types; it replaces three static cards of the first sketch. Default: PAM50 × integrative cluster. |
+| **Genes ranked by between-group variation B / total** (per gene) | Lecture 06's *B*, applied to one gene: the share of its variation explained by the groups. Replaces the ANOVA F-test of the notebook (outside the course). |
+| "Unknown" values **left out** of mutual information | "Unknown" is not information. ⚠️ Because of this, the dashboard's values are slightly higher than the notebook's (PAM50 ↔ 3-gene 0.38 vs 0.32, the 3-gene classifier has 204 Unknown). Same ranking. |
+| Cohort-correction toggle applies to **every gene-expression view** (pair view, heatmap) | One switch, consistent everywhere; the note under the chart says when it is on. |
+| Cell values printed in the heatmap only up to 15 genes | Above that, rows are too thin to read the numbers (data-ink, readability). |
+| Ward to order the **genes** in the heatmap | Same reason as for patients (balanced, no inversions); here it only orders rows, the groups stay fixed. |
+
+**Measured speed** (full cohort, with a selection): 0.1–0.4 s per card (the 36 mutual informations of the matrix
+take the longest).
+
+**Teacher questions for Phase 3**
+
+*Why does the pair view change chart type?* Because the right encoding depends on the data types (VAD: expressiveness):
+two categories → counts in a table, two quantities → positions on two axes, one of each → distribution per group.
+
+*Why row percentages in the cross-table?* To compare how each subtype is spread over the other variable regardless of
+subtype size (LumA has 679 patients, Normal 140). Counts are in the tooltip.
+
+*How do you choose the genes of the heatmap?* For each gene, the between-group variation B (as in the CH index of
+lecture 06) divided by its total variation; we keep the genes with the largest share. The dendrogram then groups
+genes with similar profiles: here a proliferation block (*E2F2, AURKA, CDK1, CCNE1*…) high in Basal, and a luminal block
+(*GATA3, MAPT, BCL2, ERBB3*…) high in LumA/LumB.
+
+*Is the heatmap a cluster heatmap?* Yes in Munzner's sense (Ch. 7): a heatmap whose rows are reordered by a hierarchical
+clustering, with the dendrogram drawn next to it; its task is to judge whether groups differ.
+
+*Why no statistical test on mutations?* The comparison is visual, on a common scale, which is the course's focus; with
+many genes, p-values would need multiple-testing correction, which is outside the scope.
+
 ---
 
 ## 3. Course mapping
@@ -221,6 +266,8 @@ scale; as "% of group" their shapes are directly comparable (side by side on a c
 | R_NX / Q_NX quality, AUC | Clusters page | TP6; DR lecture (Lee's own method) | ✅ | |
 | Curse of dimensionality / norm concentration | explains DBSCAN, linkages | DR lecture | ✅ | |
 | Linked views, filtering, aggregation, colour rules, rules of thumb | whole app | VAD (Munzner) | ✅ | |
+| Cluster heatmap (heatmap + dendrogram) | Relationships page | VAD Ch. 7 | ✅ | |
+| Between-group variation B (gene ranking) | Relationships heatmap | lecture 06 (CH index) | ✅ | applied per gene |
 | **Kaplan–Meier + log-rank** | Overview, Clusters | not in course | ⚠️ | survival is the dataset's main outcome; a KM curve is derived data shown as superimposed lines (VAD); "% deceased" would be misleading with censoring |
 | **Spearman** | association matrix | not explicit | ⚠️ | small step from TP1's Pearson; justified by skewness |
 | **Cohort (batch) correction** | sidebar toggle | not in course | ⚠️ | found *with* a course tool (PCA coloured by a label); DR lecture: "appropriate data preprocessing" |

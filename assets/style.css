@@ -62,8 +62,9 @@ button { font: inherit; }
 .page { display: flex; flex-direction: column; gap: 12px; }
 .row { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
 .span-5 { grid-column: span 5; }
+.span-6 { grid-column: span 6; }
 .span-7 { grid-column: span 7; }
-@media (max-width: 1100px) { .span-5, .span-7 { grid-column: span 12; } }
+@media (max-width: 1100px) { .span-5, .span-6, .span-7 { grid-column: span 12; } }
 
 /* ---------- sidebar ---------- */
 .sidebar {
@@ -141,6 +142,7 @@ button { font: inherit; }
 .control-label { white-space: nowrap; }
 .control .dropdown { width: 170px; font-size: 13px; }
 .control .dropdown.wide { width: 230px; }
+.control .mini-dropdown { width: 76px; }
 .control.slider { min-width: 200px; }
 .control.slider > div { flex: 1; min-width: 140px; }
 .checks { display: inline-flex; gap: 10px; font-size: 12px; }

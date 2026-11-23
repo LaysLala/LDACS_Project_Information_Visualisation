@@ -238,6 +238,13 @@ def remove_cohort_effect(mrna: pd.DataFrame, cohort: pd.Series) -> pd.DataFrame:
     return (centred - centred.mean()) / centred.std()
 
 
+@lru_cache(maxsize=2)
+def mrna_matrix(corrected: bool = False) -> pd.DataFrame:
+    """mRNA z-scores as published, or with the cohort effect removed (computed once, cached)."""
+    d = load_data()
+    return remove_cohort_effect(d.mrna, d.clinical["cohort"]) if corrected else d.mrna
+
+
 def label(column: str) -> str:
     """Display name for any column: clinical, gene expression or mutation."""
     if column in LABELS:

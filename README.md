@@ -86,7 +86,9 @@ Then open <http://127.0.0.1:8050> in a web browser.
 │   ├── state.py            filters and selection (shared state)
 │   ├── callbacks.py        app-wide callbacks (filters, selection, header, help)
 │   ├── components.py       header, filter sidebar, selection bar, cards
-│   ├── figures.py          figure builders used by the pages
+│   ├── figures.py          figure builders (Overview page)
+│   ├── figures_relationships.py   figure builders (Relationships & genomics page)
+│   ├── variables.py        clinical / gene / mutation variables shared by the charts
 │   ├── stats.py            Kaplan-Meier, log-rank test, mutual information
 │   ├── algorithms.py       dimensionality reduction, clustering, quality measures
 │   └── theme.py            shared colours, fonts and Plotly template
