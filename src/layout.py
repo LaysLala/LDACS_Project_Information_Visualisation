@@ -1,17 +1,30 @@
 """
-Layout building blocks shared by every page: header, filter sidebar,
-selection bar, help panel, and the `card` wrapper used for every chart.
+Interface layer: the parts of the page shared by all pages, and the app-wide
+callbacks that drive them.
 
-Styling lives in assets/style.css; colours and fonts match src/theme.py.
+Sections
+1. Components: header, filter sidebar, selection bar, cards, help panel.
+2. App-wide callbacks: filters, selection, header counter, help. They are
+   registered when this module is imported (by app.py and by the pages).
 """
 
 from __future__ import annotations
 
-from dash import dcc, html
+from dash import Input, Output, State, callback, ctx, dcc, html, no_update
 
-from src import theme
-from src.data import label
-from src.state import CHECKLIST_FILTERS, age_bounds, checklist_options
+from src import figures
+from src.data import (CHECKLIST_FILTERS, EMPTY_MANUAL, RECEPTOR_FILTERS, TREATMENT_FILTERS, age_bounds,
+                      apply_filters, checklist_options, default_filters, label, load_data,
+                      selection_as_filter, visible_selection)
+
+
+# =============================================================================
+# 1. Components: header, filter sidebar, selection bar, cards, help
+# =============================================================================
+# Layout building blocks shared by every page: header, filter sidebar,
+# selection bar, help panel, and the `card` wrapper used for every chart.
+#
+# Styling lives in assets/style.css; colours and fonts match the theme section of src/figures.py.
 
 PAGES = [  # (path, tab label)
     ("/", "Overview"),
@@ -51,7 +64,7 @@ def graph(graph_id: str, height: int = 320) -> dcc.Loading:
     """A Plotly graph with the shared config and a loading indicator (shown after 300 ms)."""
     return dcc.Loading(
         dcc.Graph(id=graph_id, config=GRAPH_CONFIG, style={"height": f"{height}px"}),
-        type="dot", delay_show=300, color=theme.CATEGORICAL[0],
+        type="dot", delay_show=300, color=figures.CATEGORICAL[0],
     )
 
 
@@ -95,7 +108,7 @@ def _chips(control_id: str, column: str) -> dcc.Checklist:
 
 
 def subtype_option(name: str, count: int | None) -> dict:
-    color = theme.SUBTYPE_COLORS.get(name, theme.OTHER_COLOR)
+    color = figures.SUBTYPE_COLORS.get(name, figures.OTHER_COLOR)
     text = "NC (not classified)" if name == "NC" else name
     return {"value": name, "label": html.Span([
         html.Span(className="swatch", style={"background": color}),
@@ -201,3 +214,130 @@ def help_panel() -> html.Div:
             *[html.Div([html.H3(t), html.P(p)]) for t, p in HELP_SECTIONS],
         ], className="modal", role="dialog", **{"aria-modal": "true", "aria-label": "Help"}),
     ], id="help-panel", className="modal-backdrop", style={"display": "none"})
+
+
+# =============================================================================
+# 2. App-wide callbacks (registered when this module is imported)
+# =============================================================================
+# App-wide callbacks: filters -> filtered ids, selection bar, header counter,
+# Keep only / Exclude / Reset, help panel and active page tab.
+#
+# Page-specific callbacks live in their page module (pages/*.py).
+
+FILTER_IDS = list(CHECKLIST_FILTERS) + list(RECEPTOR_FILTERS) + list(TREATMENT_FILTERS) + ["f-age"]
+FILTER_INPUTS = [Input(cid, "value") for cid in FILTER_IDS]
+
+
+@callback(Output("filtered-ids", "data"), *FILTER_INPUTS, Input("manual-filter", "data"))
+def update_filtered(*args):
+    *values, manual = args
+    filters = dict(zip(FILTER_IDS, values))
+    return [int(i) for i in apply_filters(filters, manual)]
+
+
+@callback(Output("f-subtype", "options"), *[Input(cid, "value") for cid in FILTER_IDS if cid != "f-subtype"],
+          Input("manual-filter", "data"))
+def subtype_counts(*args):
+    """Scented widget: next to each subtype, how many patients it has under the other filters."""
+    *values, manual = args
+    filters = dict(zip([c for c in FILTER_IDS if c != "f-subtype"], values))
+    ids = apply_filters(filters, manual, skip="f-subtype")
+    counts = load_data().clinical.loc[ids, "pam50_subtype"].astype(str).value_counts()
+    return [subtype_option(s, int(counts.get(s, 0))) for s in checklist_options("pam50_subtype")]
+
+
+@callback(Output("patient-counter", "children"), Input("filtered-ids", "data"), Input("selected", "data"))
+def counter(filtered, selected):
+    total = load_data().n_patients
+    n = len(filtered or [])
+    text = [f"{n:,} of {total:,} patients"]
+    n_sel = len(visible_selection(selected, filtered or []))
+    if n_sel:
+        text.append(f" · {n_sel:,} selected")
+    return "".join(text)
+
+
+@callback(Output("selection-bar", "style"), Output("selection-text", "children"),
+          Input("selected", "data"), Input("filtered-ids", "data"))
+def update_selection_bar(selected, filtered):
+    ids = visible_selection(selected, filtered or [])
+    if not ids:
+        return {"display": "none"}, ""
+    hidden = len(selected["ids"]) - len(ids)
+    extra = f" ({hidden:,} more hidden by the filters)" if hidden else ""
+    return {}, [f"{len(ids):,} patients selected", f" · {selected.get('source', '')}{extra}. ",
+                "Selected patients keep their colour in every chart; the others are greyed or shown as 'rest'."]
+
+
+@callback(Output("selected", "data", allow_duplicate=True), Input("clear-selection", "n_clicks"),
+          prevent_initial_call=True)
+def clear_selection(_):
+    return None
+
+
+@callback(Output("manual-filter", "data", allow_duplicate=True), Output("selected", "data", allow_duplicate=True),
+          [Output(cid, "value", allow_duplicate=True) for cid in FILTER_IDS],
+          Input("keep-selection", "n_clicks"), Input("exclude-selection", "n_clicks"),
+          State("selected", "data"), State("filtered-ids", "data"), State("manual-filter", "data"),
+          [State(cid, "value") for cid in FILTER_IDS],
+          prevent_initial_call=True)
+def selection_to_filter(_keep, _exclude, selected, filtered, manual, *current):
+    """Turn the selection into a filter. If it was made on a variable that has a sidebar control
+    (subtype, receptor, stage, grade, vital status, treatment, age range), change that control so the
+    user sees the filter; otherwise keep / exclude the selected patients as a list."""
+    unchanged = [no_update] * len(FILTER_IDS)
+    ids = visible_selection(selected, filtered or [])
+    if not ids:
+        return no_update, no_update, *unchanged
+    keep = ctx.triggered_id == "keep-selection"
+    spec = (selected or {}).get("filter")
+    new_values = selection_as_filter(spec, keep, dict(zip(FILTER_IDS, current))) if spec else None
+    if new_values:
+        return no_update, None, *[new_values.get(cid, no_update) for cid in FILTER_IDS]
+    manual = dict(manual or EMPTY_MANUAL)
+    if keep:
+        manual["keep"] = ids
+    else:
+        manual["exclude"] = sorted(set(manual.get("exclude") or []) | set(ids))
+    return manual, None, *unchanged
+
+
+@callback(Output("manual-filter-status", "children"), Input("manual-filter", "data"))
+def manual_status(manual):
+    manual = manual or EMPTY_MANUAL
+    parts = []
+    if manual.get("keep") is not None:
+        parts.append(f"Keeping only {len(manual['keep']):,} previously selected patients.")
+    if manual.get("exclude"):
+        parts.append(f"{len(manual['exclude']):,} patients excluded.")
+    return " ".join(parts)
+
+
+@callback([Output(cid, "value", allow_duplicate=True) for cid in FILTER_IDS],
+          Output("manual-filter", "data", allow_duplicate=True),
+          Output("selected", "data", allow_duplicate=True),
+          Input("reset-all", "n_clicks"), Input("clear-filters", "n_clicks"),
+          prevent_initial_call=True)
+def reset(_all, _filters):
+    defaults = default_filters()
+    values = [defaults[cid] for cid in FILTER_IDS]
+    selection = None if ctx.triggered_id == "reset-all" else no_update
+    return *values, EMPTY_MANUAL, selection
+
+
+@callback(Output("help-panel", "style"), Output("help-seen", "data"),
+          Input("help-open", "n_clicks"), Input("help-close", "n_clicks"), Input("url", "pathname"),
+          State("help-seen", "data"))
+def toggle_help(_open, _close, _path, seen):
+    """Open the guide on the very first visit (remembered in the browser), then only on demand.
+    Triggered by the page load (url), not by the store itself, so saving 'seen' does not re-trigger it."""
+    if ctx.triggered_id == "help-open":
+        return {}, True
+    if ctx.triggered_id == "help-close":
+        return {"display": "none"}, True
+    return ({"display": "none"}, no_update) if seen else ({}, True)
+
+
+@callback([Output(f"nav-{i}", "className") for i in range(len(PAGES))], Input("url", "pathname"))
+def active_tab(pathname):
+    return ["nav-link active" if pathname == path else "nav-link" for path, _ in PAGES]

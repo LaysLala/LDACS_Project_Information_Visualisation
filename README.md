@@ -86,18 +86,12 @@ Then open <http://127.0.0.1:8050> in a web browser. A short guide opens on the f
 │   └── clusters.py
 ├── assets/style.css        page layout and component styles
 ├── src/
-│   ├── data.py             loading and cleaning (cleaning decisions documented inside)
-│   ├── state.py            filters and selection (shared state)
-│   ├── callbacks.py        app-wide callbacks (filters, selection, header, help)
-│   ├── components.py       header, filter sidebar, selection bar, cards
-│   ├── figures.py          figure builders (Overview page)
-│   ├── figures_relationships.py   figure builders (Relationships & genomics page)
-│   ├── figures_clusters.py figure builders (Clusters & projections page)
-│   ├── compute.py          cached projections and clusterings (heavy computations)
-│   ├── variables.py        clinical / gene / mutation variables shared by the charts
-│   ├── stats.py            survival share over time, mutual information
-│   ├── algorithms.py       dimensionality reduction, clustering, quality measures
-│   └── theme.py            shared colours, fonts and Plotly template
+│   ├── data.py             loading and cleaning (decisions documented inside), filters and
+│   │                       selection, clinical / gene / mutation variables
+│   ├── analysis.py         survival share, mutual information, dimensionality reduction,
+│   │                       clustering, quality measures, cached heavy computations
+│   ├── figures.py          colours and Plotly template, every chart builder (one section per page)
+│   └── layout.py           header, filter sidebar, selection bar, cards, help + app-wide callbacks
 ├── notebooks/
 │   └── Exploratory.ipynb   exploratory data analysis
 └── report/                 project report

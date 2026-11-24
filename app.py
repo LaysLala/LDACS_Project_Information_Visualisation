@@ -15,9 +15,8 @@ import threading
 import dash
 from dash import Dash, dcc, html
 
-from src.data import DatasetMissingError, load_data
-from src.state import EMPTY_MANUAL
-from src.theme import register_template
+from src.data import EMPTY_MANUAL, DatasetMissingError, load_data
+from src.figures import register_template
 
 try:
     load_data()  # read and clean the CSV once, at start-up (cached afterwards)
@@ -33,7 +32,7 @@ def _warm_up_umap() -> None:
     try:
         import numpy as np
 
-        from src.algorithms import umap
+        from src.analysis import umap
         umap(np.random.default_rng(0).normal(size=(60, 5)), n_neighbors=5)
     except Exception:  # the warm-up is only an optimisation
         pass
@@ -49,8 +48,8 @@ app = Dash(
     external_stylesheets=["https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"],
 )
 
-from src import callbacks  # noqa: E402,F401  (registers the app-wide callbacks)
-from src.components import header, help_panel, selection_bar, sidebar  # noqa: E402
+# importing src.layout also registers the app-wide callbacks
+from src.layout import header, help_panel, selection_bar, sidebar  # noqa: E402
 
 app.layout = html.Div([
     dcc.Location(id="url"),

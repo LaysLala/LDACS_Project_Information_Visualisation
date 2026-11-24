@@ -1,5 +1,5 @@
 /* METABRIC Explorer - layout and component styles.
-   Colours and fonts mirror src/theme.py (one visual identity, grid 3.3). */
+   Colours and fonts mirror the theme section of src/figures.py (one visual identity, grid 3.3). */
 
 :root {
   --page: #f5f5f3;

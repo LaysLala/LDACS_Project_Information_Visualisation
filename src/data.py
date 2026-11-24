@@ -1,55 +1,70 @@
 """
-Data access layer for the METABRIC dashboard.
+Data layer of the METABRIC dashboard: which patients, and which values.
 
-Every page of the app reads the dataset through `load_data()`, so all views see
-exactly the same cleaned data. The cleaning decisions are listed here because
-the report has to justify them.
+Sections
+1. Loading and cleaning: `load_data()`; every cleaning decision is listed there.
+2. Filters and selection: the shared state of the app (sidebar filters, selected patients).
+3. Variables: one registry for clinical attributes, genes and mutations
+   (`clin:` / `gene:` / `mut:` keys), so every chart treats a variable the same way.
 
-Cleaning decisions
-------------------
-1. Three blocks. The CSV mixes three kinds of columns, which we split:
-     - clinical  : 31 patient attributes (+ a few derived columns, see 5.)
-     - mrna      : 489 mRNA expression z-scores (no missing values)
-     - mutations : 173 genes, 1 = the patient has >= 1 mutation in that gene
-2. Mutation columns store mutation codes as text ('H1047R', 'Q546H G1049R', ...)
-   and '0' when the gene is not mutated. One-hot encoding them would create
-   ~8,000 almost-empty columns that drown the real signal, so we binarise them
-   (mutated yes/no) and keep the raw codes separately for tooltips.
-3. Missing values are NOT imputed in the clinical block. Missing categories
-   become an explicit "Unknown" category (the user sees how much is missing);
-   missing numbers stay NaN and are left out chart by chart. Clustering and
-   dimensionality reduction run on the mRNA block, which is complete, so they
-   need no imputation at all.
-   One exception, backed by the data: `mutation_count` is missing for exactly
-   the 45 patients with no mutated gene in the panel (and tracks the number of
-   mutated genes with r = 0.97 elsewhere), so missing means 0, not unknown.
-4. Encoding fixes: the typo 'Positve' -> 'Positive'; 0/1 treatment flags ->
-   'No'/'Yes'; ordinal variables (grade, stage, cellularity, ...) get an
-   explicit order so every chart and filter lists them the same way.
-5. Survival. `overall_survival` is 1 when the patient is alive. We derive:
-     - os_event     : 1 = died of any cause            (overall survival)
-     - dss_event    : 1 = died of breast cancer, 0 = alive or died of another
-                      cause, NaN = cause unknown       (disease-specific survival)
-     - vital_status : Living / Died of disease / Died of other causes
-6. Near-constant or redundant columns stay in the table but are not offered in
-   the UI: cancer_type (1903 of 1904 are 'Breast Cancer'), oncotree_code (same
-   information as cancer_type_detailed), cohort (sampling batch, no clinical
-   meaning).
-7. Gene expression is used as published. The exploratory notebook found a
-   technical difference between the 5 sampling cohorts (notebooks/
-   Exploratory.ipynb, section 7); correcting it was judged too hard for a
-   dashboard user to interpret, so the dashboard keeps the published values.
-
-Run `python -m src.data` from the project root to print a summary.
+Run `python -m src.data` to check that the dataset is found and read correctly.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
+
+
+# =============================================================================
+# 1. Loading and cleaning
+# =============================================================================
+# Data access layer for the METABRIC dashboard.
+#
+# Every page of the app reads the dataset through `load_data()`, so all views see
+# exactly the same cleaned data. The cleaning decisions are listed here because
+# the report has to justify them.
+#
+# Cleaning decisions
+# ------------------
+# 1. Three blocks. The CSV mixes three kinds of columns, which we split:
+#      - clinical  : 31 patient attributes (+ a few derived columns, see 5.)
+#      - mrna      : 489 mRNA expression z-scores (no missing values)
+#      - mutations : 173 genes, 1 = the patient has >= 1 mutation in that gene
+# 2. Mutation columns store mutation codes as text ('H1047R', 'Q546H G1049R', ...)
+#    and '0' when the gene is not mutated. One-hot encoding them would create
+#    ~8,000 almost-empty columns that drown the real signal, so we binarise them
+#    (mutated yes/no) and keep the raw codes separately for tooltips.
+# 3. Missing values are NOT imputed in the clinical block. Missing categories
+#    become an explicit "Unknown" category (the user sees how much is missing);
+#    missing numbers stay NaN and are left out chart by chart. Clustering and
+#    dimensionality reduction run on the mRNA block, which is complete, so they
+#    need no imputation at all.
+#    One exception, backed by the data: `mutation_count` is missing for exactly
+#    the 45 patients with no mutated gene in the panel (and tracks the number of
+#    mutated genes with r = 0.97 elsewhere), so missing means 0, not unknown.
+# 4. Encoding fixes: the typo 'Positve' -> 'Positive'; 0/1 treatment flags ->
+#    'No'/'Yes'; ordinal variables (grade, stage, cellularity, ...) get an
+#    explicit order so every chart and filter lists them the same way.
+# 5. Survival. `overall_survival` is 1 when the patient is alive. We derive:
+#      - os_event     : 1 = died of any cause            (overall survival)
+#      - dss_event    : 1 = died of breast cancer, 0 = alive or died of another
+#                       cause, NaN = cause unknown       (disease-specific survival)
+#      - vital_status : Living / Died of disease / Died of other causes
+# 6. Near-constant or redundant columns stay in the table but are not offered in
+#    the UI: cancer_type (1903 of 1904 are 'Breast Cancer'), oncotree_code (same
+#    information as cancer_type_detailed), cohort (sampling batch, no clinical
+#    meaning).
+# 7. Gene expression is used as published. The exploratory notebook found a
+#    technical difference between the 5 sampling cohorts (notebooks/
+#    Exploratory.ipynb, section 7); correcting it was judged too hard for a
+#    dashboard user to interpret, so the dashboard keeps the published values.
+#
+# Run `python -m src.data` from the project root to print a summary.
 
 # Locations (always relative to the project, never absolute)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -328,6 +343,244 @@ def _as_ordered_category(series: pd.Series, order: list[str] | None) -> pd.Serie
 
 
 # Quick check:  python -m src.data
+
+
+# =============================================================================
+# 2. Filters and selection (shared state of the app)
+# =============================================================================
+# Shared state of the dashboard: which patients are kept by the filters, and
+# which are selected.
+#
+# Two mechanisms (see docs/study_guide.md):
+# - FILTER  (sidebar): removes patients from every view.
+# - SELECT  (click / box / lasso in a chart): highlights patients in every view;
+#   the other patients are drawn in grey and charts can compare
+#   "selection vs rest". A selection can be turned into a filter
+#   (Keep only / Exclude).
+#
+# Only lists of patient ids travel between the browser and the server (dcc.Store),
+# never data frames: this keeps every callback fast.
+
+# --------------------------------------------------------------------------- #
+# Filter definitions (one entry per sidebar control)
+# --------------------------------------------------------------------------- #
+CHECKLIST_FILTERS = {            # control id -> clinical column
+    "f-subtype": "pam50_subtype",
+    "f-stage": "tumor_stage",
+    "f-grade": "neoplasm_histologic_grade",
+    "f-vital": "vital_status",
+}
+RECEPTOR_FILTERS = {             # "All" / "Positive" / "Negative"
+    "f-er": "er_status",
+    "f-pr": "pr_status",
+    "f-her2": "her2_status",
+}
+TREATMENT_FILTERS = {            # "Any" / "Yes" / "No"
+    "f-chemo": "chemotherapy",
+    "f-hormone": "hormone_therapy",
+    "f-radio": "radio_therapy",
+}
+
+
+def age_bounds() -> tuple[int, int]:
+    age = load_data().clinical["age_at_diagnosis"]
+    return int(math.floor(age.min())), int(math.ceil(age.max()))
+
+
+def checklist_options(column: str) -> list[str]:
+    """All categories of a column, in display order (Unknown last)."""
+    return list(load_data().clinical[column].cat.categories)
+
+
+def default_filters() -> dict:
+    """Sidebar values meaning 'no filter'."""
+    values = {cid: checklist_options(col) for cid, col in CHECKLIST_FILTERS.items()}
+    values.update({cid: "All" for cid in RECEPTOR_FILTERS})
+    values.update({cid: "Any" for cid in TREATMENT_FILTERS})
+    values["f-age"] = list(age_bounds())
+    return values
+
+
+EMPTY_MANUAL = {"keep": None, "exclude": []}
+
+
+def apply_filters(filters: dict, manual: dict | None = None, skip: str | None = None) -> pd.Index:
+    """Patient ids kept by the sidebar filters (and by Keep only / Exclude).
+
+    `skip` ignores one control; used to count, next to each option of that
+    control, how many patients it would add (scented widget).
+    """
+    c = load_data().clinical
+    mask = pd.Series(True, index=c.index)
+
+    for cid, col in CHECKLIST_FILTERS.items():
+        if cid == skip:
+            continue
+        chosen = filters.get(cid)
+        if chosen is not None:
+            mask &= c[col].isin(chosen)
+
+    for cid, col in RECEPTOR_FILTERS.items():
+        value = filters.get(cid, "All")
+        if cid != skip and value != "All":
+            mask &= c[col] == value
+
+    for cid, col in TREATMENT_FILTERS.items():
+        value = filters.get(cid, "Any")
+        if cid != skip and value != "Any":
+            mask &= c[col] == value
+
+    if skip != "f-age" and filters.get("f-age"):
+        lo, hi = filters["f-age"]
+        mask &= c["age_at_diagnosis"].between(lo, hi)
+
+    manual = manual or EMPTY_MANUAL
+    if manual.get("keep") is not None:
+        mask &= c.index.isin(manual["keep"])
+    if manual.get("exclude"):
+        mask &= ~c.index.isin(manual["exclude"])
+
+    return c.index[mask]
+
+
+def visible_selection(selected: dict | None, filtered_ids) -> list:
+    """Selected patients that are still kept by the filters."""
+    if not selected or not selected.get("ids"):
+        return []
+    kept = set(filtered_ids)
+    return [i for i in selected["ids"] if i in kept]
+
+
+# Sidebar control matching each clinical column: a selection made on one of these columns
+# ("subtype = Basal", "ER = Negative", "age 40-50") can be turned into that control's value,
+# so "Keep only" / "Exclude" visibly update the sidebar instead of a hidden list of patients.
+CONTROL_FOR = {
+    **{col: cid for cid, col in CHECKLIST_FILTERS.items()},
+    **{col: cid for cid, col in RECEPTOR_FILTERS.items()},
+    **{col: cid for cid, col in TREATMENT_FILTERS.items()},
+    "age_at_diagnosis": "f-age",
+}
+OPPOSITE = {"Positive": "Negative", "Negative": "Positive", "Yes": "No", "No": "Yes"}
+
+
+def make_selection(ids, source: str, column: str | None = None, value=None) -> dict:
+    """Store payload for a new selection (ids as plain ints for JSON).
+
+    `column` / `value` describe the selection when it is "all filtered patients with
+    column == value" (or, for age, value = [low, high]); only kept for columns that have a
+    sidebar control."""
+    payload = {"ids": [int(i) for i in ids], "source": source}
+    if column in CONTROL_FOR:
+        payload["filter"] = {"column": column, "value": value}
+    return payload
+
+
+def selection_as_filter(spec: dict, keep: bool, current: dict) -> dict | None:
+    """New sidebar values that keep only / exclude a selection described by `spec`
+    ({column, value}); None when no sidebar control can express it."""
+    cid = CONTROL_FOR.get(spec.get("column"))
+    value = spec.get("value")
+    if cid is None:
+        return None
+    if cid in CHECKLIST_FILTERS:
+        chosen = current.get(cid) or []
+        return {cid: [value] if keep else [v for v in chosen if v != value]}
+    if cid in RECEPTOR_FILTERS or cid in TREATMENT_FILTERS:
+        if value not in OPPOSITE:
+            return None
+        return {cid: value if keep else OPPOSITE[value]}
+    if cid == "f-age" and keep:                       # a range can be kept, not excluded, with one slider
+        lo, hi = age_bounds()
+        return {cid: [max(lo, math.floor(value[0])), min(hi, math.ceil(value[1]))]}
+    return None
+
+
+def categorical_columns(max_categories: int = 8) -> list[str]:
+    """Clinical categorical columns small enough to split or colour a chart by."""
+
+    c = load_data().clinical
+    out = []
+    for col in CATEGORICAL_CLINICAL:
+        cats = [x for x in c[col].cat.categories if x != UNKNOWN]
+        if 2 <= len(cats) <= max_categories:
+            out.append(col)
+    return out
+
+
+def ordered_categories(column: str, values: pd.Series) -> list[str]:
+    """Categories present in `values`, in the column's display order."""
+    order = CATEGORY_ORDER.get(column) or checklist_options(column)
+    present = set(values.astype(str))
+    ordered = [c for c in order if c in present]
+    rest = sorted(present - set(ordered) - {UNKNOWN})
+    tail = [UNKNOWN] if UNKNOWN in present else []
+    return ordered + rest + tail
+
+
+# =============================================================================
+# 3. Variables: clinical attributes, genes and mutations
+# =============================================================================
+# Variables the user can pick in a chart (pair view, colour-by, ...):
+#
+#     clin:<column>   a clinical variable (numeric or categorical)
+#     gene:<gene>     mRNA expression of a gene (numeric, z-score)
+#     mut:<gene>      mutation status of a gene (categorical: Mutated / Not mutated)
+#
+# One place decides the type, the label and the display order of every
+# variable, so all pages treat them identically.
+
+MUTATED, NOT_MUTATED = "Mutated", "Not mutated"
+
+
+@dataclass(frozen=True)
+class Variable:
+    key: str
+    kind: str      # "num" or "cat"
+    label: str     # axis / legend title, with units
+    short: str     # compact name for titles
+
+
+def describe(key: str) -> Variable:
+    source, name = key.split(":", 1)
+    if source == "clin":
+        kind = "num" if name in NUMERIC_CLINICAL else "cat"
+        return Variable(key, kind, label(name), label(name).split(" (")[0])
+    if source == "gene":
+        return Variable(key, "num", gene_label(name), name.upper())
+    if source == "mut":
+        return Variable(key, "cat", f"{name.upper()} mutation status", f"{name.upper()} mutation")
+    raise ValueError(f"unknown variable {key!r}")
+
+
+def values(key: str, ids) -> pd.Series:
+    """Values of a variable for the given patients (index = patient id)."""
+    source, name = key.split(":", 1)
+    d = load_data()
+    if source == "clin":
+        s = d.clinical.loc[ids, name]
+        return s.astype(str) if describe(key).kind == "cat" else s
+    if source == "gene":
+        return d.mrna.loc[ids, name]
+    return d.mutations.loc[ids, name].map({1: MUTATED, 0: NOT_MUTATED})
+
+
+def categories(key: str, vals: pd.Series) -> list[str]:
+    """Display order of a categorical variable's values."""
+    source, name = key.split(":", 1)
+    if source == "mut":
+        return [c for c in (MUTATED, NOT_MUTATED) if c in set(vals)]
+    return ordered_categories(name, vals)
+
+
+def options() -> list[dict]:
+    """Dropdown options: clinical first, then all genes, then all mutations (searchable)."""
+    d = load_data()
+    opts = [{"label": f"Clinical · {label(c)}", "value": f"clin:{c}"} for c in NUMERIC_CLINICAL + CATEGORICAL_CLINICAL]
+    opts += [{"label": f"Gene · {g.upper()} expression", "value": f"gene:{g}"} for g in sorted(d.genes)]
+    opts += [{"label": f"Mutation · {g.upper()}", "value": f"mut:{g}"} for g in sorted(d.mutated_genes)]
+    return opts
+
+
 if __name__ == "__main__":
     d = load_data()
     print(f"patients            : {d.n_patients}")

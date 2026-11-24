@@ -14,23 +14,18 @@ from __future__ import annotations
 import time
 
 import dash
-import numpy as np
 import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, no_update
 
-from src import algorithms as alg
-from src import compute as C
-from src import figures, figures_clusters as FC
-from src import variables as V
-from src.components import card, labelled
-from src.data import load_data
-from src.state import make_selection, visible_selection
-from src.theme import CATEGORICAL
+from src import analysis, data, figures
+from src.data import load_data, make_selection, visible_selection
+from src.figures import CATEGORICAL
+from src.layout import card, labelled
 
 dash.register_page(__name__, path="/clusters", name="Clusters & projections",
                    title="Clusters & projections · METABRIC Explorer", order=2)
 
-COLOUR_OPTIONS = [{"label": "Cluster", "value": "cluster"}] + V.options()
+COLOUR_OPTIONS = [{"label": "Cluster", "value": "cluster"}] + data.options()
 METHOD_NAME = {"pca": "PCA", "tsne": "t-SNE", "umap": "UMAP"}
 ALGO_NAME = {"kmeans": "K-means", "hierarchical": "Hierarchical", "dbscan": "DBSCAN"}
 PROJ_CONFIG = {"displaylogo": False, "modeBarButtonsToRemove": ["autoScale2d", "toggleSpikelines"],
@@ -182,16 +177,16 @@ def run(n_clicks, method, perplexity, neighbors, mindist, algo, k, linkage, eps_
     space_name = clustering_space(algo)
     if n_clicks is None and previous:            # coming back to the page: keep the last result
         return no_update, _status(previous, from_cache=True)
-    ids = C.ids_key(filtered or [])
-    if len(ids) < C.MIN_PATIENTS:
-        return no_update, f"At least {C.MIN_PATIENTS} patients are needed; the filters keep {len(ids)}."
+    ids = analysis.ids_key(filtered or [])
+    if len(ids) < analysis.MIN_PATIENTS:
+        return no_update, f"At least {analysis.MIN_PATIENTS} patients are needed; the filters keep {len(ids)}."
     proj = (method, float(perplexity if method == "tsne" else neighbors), float(mindist))
     if method == "pca":
         proj = ("pca", 0.0, 0.0)
     t0 = time.perf_counter()
-    xy, extra = C.projection(*proj, ids)
-    raw, info = C.cluster_labels(algo, int(k), linkage, float(eps_pct), int(min_samples), space_name, proj, ids)
-    names = C.name_clusters(raw)
+    xy, extra = analysis.projection(*proj, ids)
+    raw, info = analysis.cluster_labels(algo, int(k), linkage, float(eps_pct), int(min_samples), space_name, proj, ids)
+    names = analysis.name_clusters(raw)
     result = {
         "ids": list(ids), "x": xy[:, 0].tolist(), "y": xy[:, 1].tolist(), "labels": names.tolist(),
         "method": method, "extra": [float(e) for e in extra], "proj": list(proj), "algo": algo, "k": int(k),
@@ -237,7 +232,7 @@ def projection(res, filtered, selected, colour):
         return figures.empty_figure("Press Run to compute a projection", 390), ""
     visible = _patients(res, filtered)
     sel = pd.Index(visible_selection(selected, filtered or []))
-    fig = FC.projection_figure(res, visible, sel, colour, height=390)
+    fig = figures.projection_figure(res, visible, sel, colour, height=390)
     notes = []
     if set(filtered or []) != set(res["ids"]):
         notes.append(f"Filters changed since the last Run: showing the {len(visible):,} computed patients that "
@@ -270,26 +265,26 @@ def diagnostics(res, tab):
     ids, proj, sp = tuple(res["ids"]), tuple(res["proj"]), res["space"]
     where = "489 genes" if sp == "genes" else "the 2-D view"
     if tab == "quality":
-        K, R, auc = C.rnx(proj, ids)
-        return (FC.rnx_figure(K, R, auc, res["method"], 330),
+        K, R, auc = analysis.rnx(proj, ids)
+        return (figures.rnx_figure(K, R, auc, res["method"], 330),
                 f"How well the 2-D view keeps each patient's neighbours from the 489-D space (AUC = {auc:.3f}; "
                 "t-SNE is usually best for small K, PCA for large K).")
     if tab == "tree":
         if res["algo"] != "hierarchical":
             return figures.empty_figure("Choose Hierarchical clustering and press Run to see the dendrogram", 330), ""
-        Z = C.linkage_tree(res["linkage"], sp, proj, ids)
-        inv = alg.count_inversions(Z)
-        return (FC.dendrogram_figure(Z, res["k"], len(ids), inv, 330),
+        Z = analysis.cached_linkage_tree(res["linkage"], sp, proj, ids)
+        inv = analysis.count_inversions(Z)
+        return (figures.dendrogram_figure(Z, res["k"], len(ids), inv, 330),
                 f"{res['linkage'].capitalize()} linkage on {where}; dashed line = cut into {res['k']} clusters "
                 "(k slider + Run). Click a dot to select that branch.")
     if res["algo"] == "dbscan":
-        kd = C.k_distance(res["min_samples"], sp, proj, ids)
-        return (FC.kdistance_figure(kd, res["info"]["eps"], res["eps_pct"], res["min_samples"], 330),
+        kd = analysis.cached_k_distance(res["min_samples"], sp, proj, ids)
+        return (figures.kdistance_figure(kd, res["info"]["eps"], res["eps_pct"], res["min_samples"], 330),
                 f"Distance of each patient to its {res['min_samples'] - 1}-th neighbour in {where}, sorted. "
                 "eps is usually taken at the knee of the curve.")
-    table = C.choose_k(sp, proj, ids)
+    table = analysis.choose_k(sp, proj, ids)
     best = int(table.loc[table["CH"].idxmax(), "k"])
-    return (FC.choose_k_figure(table, res["k"], 330),
+    return (figures.choose_k_figure(table, res["k"], 330),
             f"K-means in {where}, k = 2..8 (circle = current k). Calinski–Harabasz is highest at k = {best}.")
 
 
@@ -301,7 +296,7 @@ def branch_select(click, res, tab):
     cd = click["points"][0].get("customdata")
     if not cd:
         return no_update
-    members = C.branch_members(int(cd[0]), res["linkage"], res["space"], tuple(res["proj"]),
+    members = analysis.branch_members(int(cd[0]), res["linkage"], res["space"], tuple(res["proj"]),
                                tuple(res["ids"]))
     return make_selection(members, f"dendrogram branch of {len(members):,} patients (Clusters)")
 
@@ -321,10 +316,10 @@ def composition(res, filtered):
         return figures.empty_figure("Press Run first", 260), ""
     clusters = _cluster_series(res, filtered)
     sub = load_data().clinical.loc[clusters.index, "pam50_subtype"].astype(str)
-    keep = (clusters != FC.NOISE) & ~sub.isin(["NC", "Unknown"])
-    purity = alg.purity(clusters[keep], sub[keep]) if keep.any() else float("nan")
+    keep = (clusters != figures.NOISE) & ~sub.isin(["NC", "Unknown"])
+    purity = analysis.purity(clusters[keep], sub[keep]) if keep.any() else float("nan")
     baseline = sub[keep].value_counts(normalize=True).max() if keep.any() else float("nan")
-    return (FC.composition_figure(clusters, sub, 260),
+    return (figures.composition_figure(clusters, sub, 260),
             f"Purity = {purity:.2f} (one cluster for everybody: {baseline:.2f}) · purity grows with k, "
             "so compare settings at the same k.")
 
@@ -351,5 +346,5 @@ def survival(res, filtered, event):
         return figures.empty_figure("Press Run first", 260), ""
     clusters = _cluster_series(res, filtered)
     df = load_data().clinical.loc[clusters.index]
-    order = [c for c in FC.cluster_order(clusters) if c != FC.NOISE]
-    return figures.survival_figure(df, clusters, order, FC.cluster_colors(order), event=event, height=260)
+    order = [c for c in figures.cluster_order(clusters) if c != figures.NOISE]
+    return figures.survival_figure(df, clusters, order, figures.cluster_colors(order), event=event, height=260)

@@ -1,6 +1,6 @@
 # METABRIC Explorer: study guide
 
-*For Renan and Lays. Last updated: survival change (2026-11-23). Update it at the end of every phase.*
+*For Renan and Lays. Last updated: code reorganisation (2026-11-23). Update it at the end of every phase.*
 
 This file explains **what we decided, why, how it connects to the course, and what a teacher is likely to ask**.
 Read it before the TA meeting and again before the oral exam. Every number quoted here comes from
@@ -54,7 +54,7 @@ age, stage, grade, vital status, treatment) and **selection bar** (keep only / e
 
 Format: **Decision**: why. *(Course link.)*
 
-### Phase 0: foundations (`src/data.py`, `src/theme.py`)
+### Phase 0: foundations (`src/data.py`, theme section of `src/figures.py`)
 
 **Repository layout.** `src/` (shared code), `notebooks/`, `data/` (dataset, not in the zip), `course_material/`,
 `report/`, `docs/`. All paths are relative to the project root (brief requirement).
@@ -73,7 +73,7 @@ Format: **Decision**: why. *(Course link.)*
 | `overall_survival_months` labelled **"Follow-up time (months)"** | For living patients it is time followed so far, not survival. |
 | mRNA: **no extra scaling** | Every gene already has mean 0, sd 1 in this cohort (z-scores). Scaling again changes nothing. |
 
-**Theme (`src/theme.py`).** One Plotly template for every chart + fixed colour meanings.
+**Theme (first section of `src/figures.py`).** One Plotly template for every chart + fixed colour meanings.
 
 | Decision | Why | Course |
 |---|---|---|
@@ -149,7 +149,7 @@ Format: **Decision**: why. *(Course link.)*
 | **Cluster heatmap** (heatmap + dendrogram) | Course idiom to assess clusters | VAD Ch. 7 |
 | Heavy algorithms behind a **Run** button, spinner, cache; PCA precomputed | Responsiveness rule: 0.1 s / 1 s / 10 s | VAD rules of thumb; brief §4 |
 
-### Phase 2: app skeleton + Overview page (`app.py`, `pages/`, `src/state.py`, `src/figures.py`, …)
+### Phase 2: app skeleton + Overview page (`app.py`, `pages/`, `src/data.py`, `src/figures.py`, `src/layout.py`)
 
 **Architecture**
 
@@ -194,7 +194,7 @@ update: 1,904 ints is tiny, a data frame with 700 columns is not. The data stays
 *Why normalise the histogram when a selection exists?* 87 selected patients next to 1,904 would be invisible on a count
 scale; as "% of group" their shapes are directly comparable (side by side on a common scale, not from memory).
 
-### Phase 3: Relationships & genomics page (`pages/relationships.py`, `src/figures_relationships.py`, `src/variables.py`)
+### Phase 3: Relationships & genomics page (`pages/relationships.py`, `src/figures.py`, `src/data.py`)
 
 **Four linked cards (2 × 2, fits one screen)**
 
@@ -209,7 +209,7 @@ scale; as "% of group" their shapes are directly comparable (side by side on a c
 
 | Decision | Why |
 |---|---|
-| One **variable registry** (`clin:` / `gene:` / `mut:` keys, `src/variables.py`) | Every chart treats a variable the same way (type, label with units, category order); the Clusters page will reuse it for "colour by". |
+| One **variable registry** (`clin:` / `gene:` / `mut:` keys, in `src/data.py`) | Every chart treats a variable the same way (type, label with units, category order); the Clusters page will reuse it for "colour by". |
 | The pair view **chooses the chart from the types** | The user thinks in variables, not chart types; it replaces three static cards of the first sketch. Default: PAM50 × integrative cluster. |
 | **Genes ranked by between-group variation B / total** (per gene) | Lecture 06's *B*, applied to one gene: the share of its variation explained by the groups. Replaces the ANOVA F-test of the notebook (outside the course). |
 | "Unknown" values **left out** of mutual information | "Unknown" is not information. ⚠️ Because of this, the dashboard's values are slightly higher than the notebook's (PAM50 ↔ 3-gene 0.38 vs 0.32, the 3-gene classifier has 204 Unknown). Same ranking. |
@@ -238,7 +238,7 @@ clustering, with the dendrogram drawn next to it; its task is to judge whether g
 *Why no statistical test on mutations?* The comparison is visual, on a common scale, which is the course's focus; with
 many genes, p-values would need multiple-testing correction, which is outside the scope.
 
-### Phase 4: Clusters & projections page (`pages/clusters.py`, `src/compute.py`, `src/figures_clusters.py`)
+### Phase 4: Clusters & projections page (`pages/clusters.py`, `src/analysis.py`, `src/figures.py`)
 
 **Cards**
 
@@ -316,21 +316,21 @@ at 20 genes); "1 cluster" grammar; README note for Windows (`py` instead of `pyt
 | Grid item | How we address it | Where |
 |---|---|---|
 | 1.1 Appropriate charts | bars for counts, histogram/box for distributions, scatter for 2 numerics, heatmaps for matrices/tables, lines for survival; the pair view picks the chart from the data types | all pages |
-| 1.2 No chart junk | no 3-D, no shadows, light grid, no decorative colour; one accent colour | `theme.py` |
+| 1.2 No chart junk | no 3-D, no shadows, light grid, no decorative colour; one accent colour | `figures.py` (theme) |
 | 1.3 Readability | axis titles with units, legends, hover on every mark, notes under charts (n, statistics) | all charts |
-| 1.4 Colours | colour-blind-validated palettes; fixed subtype colours; diverging only for signed values (z, ρ), sequential for magnitudes; z clipped at ±3 | `theme.py` |
+| 1.4 Colours | colour-blind-validated palettes; fixed subtype colours; diverging only for signed values (z, ρ), sequential for magnitudes; z clipped at ±3 | `figures.py` (theme) |
 | 1.5 Data-ink | lower-triangle matrices (no redundant half, no diagonal), values in cells only when readable | page 2 |
-| 2.1 Linked views | one shared selection and one shared filter; every chart listens; 9 charts can create a selection; selection ↔ filter (Keep only / Exclude) | `state.py`, `callbacks.py` |
+| 2.1 Linked views | one shared selection and one shared filter; every chart listens; 9 charts can create a selection; selection ↔ filter (Keep only / Exclude) | `data.py` (filters and selection), `layout.py` (callbacks) |
 | 2.2 Details on demand | hover templates on every mark; (i) help per card; status lines | all pages |
-| 2.3 Speed | ids-only stores; all light charts ≤ 0.4 s; heavy algorithms only on Run, cached, UMAP pre-warmed | `compute.py` |
+| 2.3 Speed | ids-only stores; all light charts ≤ 0.4 s; heavy algorithms only on Run, cached, UMAP pre-warmed | `analysis.py` (cached computations) |
 | 3.1 Axes & scales | y from 0 for counts, % and choose-k; survival 0–100%; log scale only on request, ticks in real units; PCA axes show % variance; t-SNE/UMAP axes hidden (meaningless) | figures |
 | 3.2 Density vs simplicity | 3 pages × 4–5 cards; controls trimmed (Phase 5); heatmap ≤ 20 genes | layout |
-| 3.3 Consistency | one Plotly template, one font, same colours/legends/selection style everywhere | `theme.py`, `style.css` |
+| 3.3 Consistency | one Plotly template, one font, same colours/legends/selection style everywhere | `figures.py` (theme), `style.css` |
 | 4.1 Navigation | 3 tabs, active tab highlighted; sidebar always visible; reset button | header, sidebar |
-| 4.2 Guidance | guide on first visit + Help button; (i) per card; notes under charts say what to do | `components.py` |
+| 4.2 Guidance | guide on first visit + Help button; (i) per card; notes under charts say what to do | `layout.py` |
 | 4.3 Feedback | loading indicator (after 300 ms), Run status line (time, warnings), selection bar, patient counter, "press Run" when outdated | all pages |
 | 4.4 Layout | each page fits a 1440 × 1000 screen: a selection's effect is visible without scrolling | `style.css` |
-| 4.5 Accessibility | colour-blind palettes, colour never the only cue (legends/labels), contrast ≥ 4.5:1, text ≥ 11 px in charts, real buttons/labels, keyboard focus outlines | `theme.py`, `style.css` |
+| 4.5 Accessibility | colour-blind palettes, colour never the only cue (legends/labels), contrast ≥ 4.5:1, text ≥ 11 px in charts, real buttons/labels, keyboard focus outlines | `figures.py` (theme), `style.css` |
 | 5.1 Creativity | adaptive pair view; cluster heatmap linked to the pair view; histograms normalised to compare a selection's shape; clusters reused on every page ("by cluster"); live dendrogram selection with inversion warning | pages 2–3 |
 | 6.x Report | to do in Phase 6 (this guide is the source) | |
 
@@ -362,11 +362,31 @@ status at t is known, drawn as a line chart over the **first 5 years**.
 |---|---|
 | Kaplan–Meier curves up to 30 years, stopped at < 10 patients at risk | share alive per month, months 0 to 60, stopped at < 10 patients with a known status |
 | log-rank χ², df, p under the chart | "Alive at 5 years: LumA 93% · …" under the chart |
-| `stats.kaplan_meier`, `stats.median_survival`, `stats.logrank_test`, `figures.km_figure` | `stats.survival_share`, `stats.survival_at`, `figures.survival_figure` (old functions deleted) |
+| `stats.kaplan_meier`, `stats.median_survival`, `stats.logrank_test`, `figures.km_figure` | `analysis.survival_share`, `analysis.survival_at`, `figures.survival_figure` (old functions deleted) |
 | KPI "5-year DSS" from Kaplan–Meier | KPI "Alive at 5 years" from the share |
 
 The notebook (section 5 and the cluster-survival cell) was patched the same way. Up to 5 years the share agrees with
 Kaplan–Meier within about one point (all patients: 81% vs 82%).
+
+### Code reorganisation: 13 modules → 4 (2026-11-23)
+
+To make the project easier to read, `src/` was merged into **four files, one per layer**:
+data → computation → visualization → interface. Nothing in the dashboard's behaviour changed (same callbacks, same
+numbers, checked before/after). Each file starts with a contents list and keeps one section per former module.
+
+| New file | Former modules | What it holds |
+|---|---|---|
+| `src/data.py` | data, state, variables | loading and cleaning; filters and selection; the variable registry |
+| `src/analysis.py` | stats, algorithms, compute | survival share, mutual information; DR, clustering, quality measures; cached computations |
+| `src/figures.py` | theme, figures, figures_relationships, figures_clusters | colours and Plotly template; every chart builder, one section per page |
+| `src/layout.py` | components, callbacks | header, sidebar, selection bar, cards, help; app-wide callbacks |
+
+Renamed to avoid clashes: the cached versions in the Clusters page are `analysis.cached_linkage_tree` and
+`analysis.cached_k_distance` (the plain `linkage_tree` / `k_distance` are the algorithms); the selection-bar callback is
+`update_selection_bar`. An unused colour helper (`theme.cluster_colors`) was deleted.
+
+*Why not 3 files?* Merging `layout.py` into `app.py` would force the pages to import `app.py`, which re-runs it and
+creates a second Dash app. Four layers is the smallest clean split.
 
 ---
 
@@ -542,7 +562,7 @@ line charts** (a course idiom), i.e. a **derived attribute** (Munzner Ch. 2).
 t; *known* = alive + dead; **share = alive / known**. A patient whose follow-up ended before t, still alive, is left out
 at t (we do not know their status). Toy example, 5 patients: deaths at 10 and 30 months, censored at 20, 40, 50 →
 at month 25: alive = 3 (30, 40, 50), dead = 1 (10), the one censored at 20 is left out → share = 3/4 = 75%.
-Code: `stats.survival_share`.
+Code: `analysis.survival_share`.
 
 **Why stop at 5 years?** Patients were recruited over many years, so at long horizons the patients recruited later
 (still alive, but not yet followed that long) drop out of the share while early deaths stay in, and the share falls too

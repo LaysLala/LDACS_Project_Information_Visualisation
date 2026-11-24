@@ -14,9 +14,9 @@ import pandas as pd
 from dash import Input, Output, State, callback, dcc, html, no_update
 
 from src import figures
-from src.components import card, graph, labelled
-from src.data import NUMERIC_CLINICAL, label, load_data
-from src.state import categorical_columns, make_selection, visible_selection
+from src.data import (NUMERIC_CLINICAL, categorical_columns, label, load_data, make_selection,
+                      visible_selection)
+from src.layout import card, graph, labelled
 
 dash.register_page(__name__, path="/", name="Overview", title="Overview · METABRIC Explorer", order=0)
 
